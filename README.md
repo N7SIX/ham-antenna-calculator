@@ -1,5 +1,10 @@
 # Ham Antenna Calculator
 
+**by N7SIX** — 🔗 **Live app: <https://n7six.github.io/ham-antenna-calculator/>**
+
+Share that link with anyone: it runs entirely in their browser — no account, no
+install, no tracking, and it works on phones and tablets as well as desktops.
+
 A dependency-free web app that calculates ham radio antenna dimensions for a
 chosen design frequency: **half-wave dipole, inverted-V, folded dipole, end-fed
 half wave, quarter-wave / ground-plane vertical, half-wave vertical,
@@ -8,6 +13,30 @@ five-eighth-wave vertical, Yagi beams, full-wave loops and cubical quads.**
 Every result is shown in **feet and metres** (plus a feet + inches figure for
 cutting wire), together with a labelled schematic, builder notes and the exact
 formula used.
+
+## Hosting and sharing
+
+GitHub itself is the web server: **GitHub Pages** serves this repository's
+`main` branch as a static website, so there is nothing to install, run or keep
+alive.
+
+| | |
+| --- | --- |
+| Live site | <https://n7six.github.io/ham-antenna-calculator/> |
+| Repository | <https://github.com/N7SIX/ham-antenna-calculator> |
+| Pages settings | Settings → Pages (branch `main`, folder `/`) |
+
+- Every `git push` to `main` republishes the site automatically (~1 minute).
+- Visitors need no GitHub account; the site is public over HTTPS.
+- `og-image.png` plus the Open Graph meta tags in `index.html` give shared links
+  a proper preview card; `favicon.svg` gives the browser tab its antenna icon.
+- **Own domain?** Add a file named `CNAME` containing your hostname (e.g.
+  `antenna.n7six.com`) and point a `CNAME` DNS record at `n7six.github.io`, then
+  enter the domain under Settings → Pages → Custom domain (tick *Enforce HTTPS*).
+- Static hosting is all this app needs — there is no server-side code. If you
+  ever add a feature that needs an API, look at Cloudflare Workers, Vercel or
+  Netlify Functions, which also deploy straight from GitHub.
+
 
 ## Quick start
 

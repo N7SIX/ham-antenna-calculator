@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Ham Antenna Calculator">
+  <rect width="64" height="64" rx="14" fill="#0b1020"/>
+  <path d="M17 20q15-11 30 0" fill="none" stroke="#4cc9f0" stroke-width="4" stroke-linecap="round"/>
+  <line x1="32" y1="14" x2="32" y2="49" stroke="#ffb703" stroke-width="5" stroke-linecap="round"/>
+  <line x1="32" y1="49" x2="14" y2="56" stroke="#4cc9f0" stroke-width="4" stroke-linecap="round"/>
+  <line x1="32" y1="49" x2="50" y2="56" stroke="#4cc9f0" stroke-width="4" stroke-linecap="round"/>
+  <circle cx="32" cy="49" r="3.4" fill="#ffb703"/>
+</svg>
