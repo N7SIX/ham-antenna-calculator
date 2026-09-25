@@ -27,9 +27,10 @@ alive.
 | Pages settings | Settings → Pages (branch `main`, folder `/`) |
 
 - Every `git push` to `main` republishes the site automatically (~1 minute).
-- Visitors need no GitHub account; the site is public over HTTPS.
+- Visitors need no GitHub account; the site is public over HTTPS:
+  `https://n7six.github.io/ham-antenna-calculator/`
 - `og-image.png` plus the Open Graph meta tags in `index.html` give shared links
-  a proper preview card; `favicon.svg` gives the browser tab its antenna icon.
+  a proper preview card; the favicon features the N7SIX GitHub profile photo.
 - **Own domain?** Add a file named `CNAME` containing your hostname (e.g.
   `antenna.n7six.com`) and point a `CNAME` DNS record at `n7six.github.io`, then
   enter the domain under Settings → Pages → Custom domain (tick *Enforce HTTPS*).

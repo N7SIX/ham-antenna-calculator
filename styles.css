@@ -71,6 +71,19 @@ body {
   margin: 0;
   font-size: clamp(1.5rem, 1rem + 2vw, 2.15rem);
   letter-spacing: -0.02em;
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+.profile-pic {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+  vertical-align: middle;
+  border: 2px solid var(--accent-2);
 }
 
 .app-header h1 .spark { color: var(--accent); }
