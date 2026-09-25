@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Ham Antenna Calculator — syntax check</title>
+<style>
+  body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; margin: 2rem; background: #0b1020; color: #e9eefb; }
+  h1 { font-size: 1.1rem; }
+  pre { background: #121a2f; border: 1px solid #24324f; border-radius: 10px; padding: 1rem; font-size: 0.85rem; }
+</style>
+</head>
+<body>
+<h1>Ham Antenna Calculator — JavaScript syntax check</h1>
+<pre id="out">fetching sources…</pre>
+
+<script>
+/* Parses each source file with new Function() — proves the file is
+   syntactically valid without executing it. That matters for
+   tests/antennas.test.js, which needs Node's require() and therefore cannot
+   run in a browser. Serve this folder over http:// so fetch() is allowed. */
+(function () {
+  var files = ['../antennas.js', '../app.js', 'test-cases.js', 'antennas.test.js'];
+  var out = document.getElementById('out');
+  var lines = [];
+  var pending = files.length;
+
+  function done() {
+    if (--pending > 0) return;
+    var bad = lines.filter(function (l) { return l.indexOf('SYNTAX ERROR') === 0; }).length;
+    lines.push('');
+    lines.push(bad === 0 ? 'SYNTAX OK — all files parse' : 'SYNTAX ERRORS: ' + bad);
+    out.textContent = lines.join('\n');
+  }
+
+  var i, name;
+  for (i = 0; i < files.length; i++) {
+    name = files[i];
+    (function (file) {
+      fetch(file).then(function (res) {
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        return res.text();
+      }).then(function (src) {
+        try {
+          /* jshint evil:true */
+          new Function(src);                       // parse only, never called
+          lines.push('OK — ' + file + ' (' + src.length + ' chars)');
+        } catch (e) {
+          lines.push('SYNTAX ERROR — ' + file + ' :: ' + (e && e.message ? e.message : e));
+        }
+        done();
+      }).catch(function (e) {
+        lines.push('SYNTAX ERROR — ' + file + ' :: could not load (' + (e && e.message ? e.message : e) + ')');
+        done();
+      });
+    })(name);
+  }
+})();
+</script>
+</body>
+</html>

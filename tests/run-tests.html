@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Ham Antenna Calculator — math test suite</title>
+<style>
+  body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; margin: 2rem; background: #0b1020; color: #e9eefb; }
+  h1 { font-size: 1.15rem; }
+  p { color: #9aa9c9; }
+  p.pass { color: #7bd88f; font-weight: 700; }
+  p.fail { color: #ff9f68; font-weight: 700; }
+  pre { background: #121a2f; border: 1px solid #24324f; border-radius: 10px; padding: 1rem; font-size: 0.82rem; line-height: 1.5; overflow-x: auto; }
+</style>
+</head>
+<body>
+<h1>Ham Antenna Calculator — antenna math test suite</h1>
+<p id="summary">Running…</p>
+<div id="out"></div>
+
+<script src="../antennas.js"></script>
+<script src="test-cases.js"></script>
+<script>
+(function () {
+  var summary = document.getElementById('summary');
+  var out = document.getElementById('out');
+  var node = document.createElement('pre');
+  try {
+    if (!window.Antennas) throw new Error('antennas.js did not load');
+    if (!window.AntennaTests) throw new Error('test-cases.js did not load');
+    var report = window.AntennaTests.runTests(window.Antennas);
+    var lines = [], i, r;
+    for (i = 0; i < report.results.length; i++) {
+      r = report.results[i];
+      lines.push((r.ok ? 'PASS' : 'FAIL') + ' — ' + r.name + (r.ok ? '' : ' :: ' + r.message));
+    }
+    lines.push('');
+    lines.push((report.failed === 0 ? 'ALL TESTS PASSED' : 'FAILURES: ' + report.failed) +
+      '  (' + report.passed + '/' + report.total + ' passed)');
+    node.textContent = lines.join('\n');
+    summary.textContent = report.failed === 0 ? 'ALL TESTS PASSED (' + report.passed + '/' + report.total + ')' :
+      'FAILURES: ' + report.failed + ' of ' + report.total;
+    summary.className = report.failed === 0 ? 'pass' : 'fail';
+  } catch (e) {
+    node.textContent = 'HARNESS ERROR: ' + (e && e.message ? e.message : e);
+    summary.textContent = 'HARNESS ERROR';
+    summary.className = 'fail';
+  }
+  out.appendChild(node);
+})();
+</script>
+</body>
+</html>

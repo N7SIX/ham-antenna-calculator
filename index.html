@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ham Antenna Calculator — dipole, vertical, Yagi, quad dimensions</title>
+<meta name="description" content="Free ham radio antenna calculator: half-wave dipole, inverted-V, folded dipole, end-fed half wave, quarter-wave and five-eighth-wave verticals, Yagi beams, full-wave loops and cubical quads, in feet or metres.">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<header class="app-header">
+  <h1><span class="spark">⌁</span> Ham Antenna Calculator</h1>
+  <p class="byline">by N7SIX</p>
+  <p class="tagline">Dimensions for dipoles, verticals, Yagis, loops and quads. Set a frequency, read the lengths in feet or metres, cut once.</p>
+</header>
+
+<main class="layout">
+
+  <section class="panel controls" aria-labelledby="controls-heading">
+    <h2 id="controls-heading">Inputs</h2>
+
+    <div class="field">
+      <label for="band">Band preset</label>
+      <select id="band"></select>
+    </div>
+
+    <div class="field">
+      <label for="freq">Frequency (MHz)</label>
+      <input id="freq" type="number" inputmode="decimal" min="0.1" max="6000" step="0.001" value="14.175">
+      <p class="hint">Design frequency — the part of the band you use most.</p>
+    </div>
+
+    <div class="field">
+      <span class="field-label" id="units-label">Units</span>
+      <div class="segmented" role="radiogroup" aria-labelledby="units-label">
+        <button type="button" class="seg-btn is-active" id="units-ft" role="radio" aria-checked="true">Feet</button>
+        <button type="button" class="seg-btn" id="units-m" role="radio" aria-checked="false">Metres</button>
+      </div>
+    </div>
+
+    <div class="field">
+      <label for="factor">Length factor <span class="badge" id="factor-value">0.95</span></label>
+      <input id="factor" type="range" min="0.85" max="1" step="0.005" value="0.95">
+      <p class="hint">End effect and insulation shortening for straight wire. At 0.95 you get the familiar <code>467 / f</code> dipole and <code>234 / f</code> vertical — the classic <code>468 / f</code> field rule is 0.2 % longer. Loops use the published <code>1005 / f</code> perimeter instead.</p>
+    </div>
+
+    <div id="extra-inputs"></div>
+  </section>
+
+  <section class="panel results">
+    <h2>Results</h2>
+
+    <div class="tabs" role="tablist" aria-label="Antenna type" id="tabs"></div>
+
+    <h3 class="ant-title" id="ant-title">Half-wave dipole</h3>
+    <p class="summary" id="ant-summary"></p>
+    <p class="hint" id="ant-meta"></p>
+
+    <div class="diagram" id="diagram"></div>
+    <div class="rows" id="rows"></div>
+
+    <div class="actions">
+      <button type="button" class="btn btn-accent" id="copy">Copy results</button>
+      <button type="button" class="btn" id="print">Print / save as PDF</button>
+    </div>
+
+    <ul class="notes" id="notes"></ul>
+    <details class="formulas">
+      <summary>Formulas used</summary>
+      <ul id="formulas"></ul>
+    </details>
+  </section>
+
+</main>
+
+<footer class="app-footer">
+  <p><strong>Reality check:</strong> these are starting dimensions. Height above ground, ground conductivity, wire insulation, nearby structures and element diameter all move the resonant point — cut a little long and trim with an analyser. For beams, model the design (MMANA-GAL, EZNEC, 4nec2) before you cut metal.</p>
+  <p>References: ARRL Antenna Book practice, DL6WU/Rothammel Yagi design data, published loop and quad conventions. No build step, no dependencies, no tracking — save this folder and it runs offline.</p>
+  <noscript><p><strong>JavaScript is required:</strong> all dimensions are calculated in the browser.</p></noscript>
+</footer>
+
+<script src="antennas.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

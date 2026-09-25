@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Ham Antenna Calculator — UI smoke test</title>
+<style>
+  body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; margin: 2rem; background: #0b1020; color: #e9eefb; }
+  h1 { font-size: 1.1rem; }
+  p.pass { color: #7bd88f; font-weight: 700; }
+  p.fail { color: #ff9f68; font-weight: 700; }
+  pre { background: #121a2f; border: 1px solid #24324f; border-radius: 10px; padding: 1rem; font-size: 0.82rem; line-height: 1.5; overflow-x: auto; }
+  iframe { width: 100%; height: 420px; border: 1px solid #24324f; border-radius: 10px; background: #fff; }
+</style>
+</head>
+<body>
+<h1>Ham Antenna Calculator — UI smoke test (drives the real index.html in an iframe)</h1>
+<p id="summary">Running…</p>
+<pre id="out">waiting for the app…</pre>
+<iframe id="app-frame" src="../index.html" title="Ham Antenna Calculator"></iframe>
+
+<script>
+(function () {
+  var lines = [], passed = 0, failed = 0;
+  var summary = document.getElementById('summary');
+  var out = document.getElementById('out');
+
+  function check(name, cond, detail) {
+    if (cond) { passed++; lines.push('PASS — ' + name); }
+    else { failed++; lines.push('FAIL — ' + name + (detail ? ' :: ' + detail : '')); }
+  }
+
+  function text(node) {
+    return node ? (node.textContent || '').replace(/\s+/g, ' ').trim() : '';
+  }
+
+  function rowsText(doc) { return text(doc.getElementById('rows')); }
+
+  function fire(doc, el, type) {
+    el.dispatchEvent(new doc.defaultView.Event(type, { bubbles: true }));
+  }
+
+  function run() {
+    var frame = document.getElementById('app-frame');
+    var doc = frame.contentDocument;
+    try {
+      if (!doc) throw new Error('iframe document not accessible — serve this page over http://');
+
+      /* 1 — initial render */
+      check('app booted: tabs generated', doc.querySelectorAll('#tabs .tab').length === 10,
+        'found ' + doc.querySelectorAll('#tabs .tab').length);
+      check('initial title is the dipole', text(doc.getElementById('ant-title')).indexOf('dipole') !== -1,
+        text(doc.getElementById('ant-title')));
+      var rows = rowsText(doc);
+      check('dipole total length rendered in feet', rows.indexOf('32.96 ft') !== -1, rows.slice(0, 90));
+      check('feed impedance note shown', rows.indexOf('73') !== -1);
+      check('schematic drawn', doc.getElementById('diagram').querySelector('svg') !== null);
+      check('band preset matched at 20 m', doc.getElementById('band').value === '14.175',
+        doc.getElementById('band').value);
+
+      /* 2 — change frequency by typing */
+      var freq = doc.getElementById('freq');
+      freq.value = '28.5';
+      fire(doc, freq, 'input');
+      rows = rowsText(doc);
+      check('typing 28.5 MHz recalculates the dipole', rows.indexOf('16.39 ft') !== -1, rows.slice(0, 60));
+      check('28.5 MHz matches the 10 m preset', doc.getElementById('band').value === '28.5',
+        doc.getElementById('band').value);
+
+      /* 3 — band preset drives the frequency box */
+      var band = doc.getElementById('band');
+      band.value = '7.15';
+      fire(doc, band, 'change');
+      check('choosing 40 m sets the frequency input', doc.getElementById('freq').value === '7.15',
+        doc.getElementById('freq').value);
+      check('40 m dipole is 65.34 ft', rowsText(doc).indexOf('65.34 ft') !== -1, rowsText(doc).slice(0, 60));
+
+      /* 4 — unit switch */
+      doc.getElementById('units-m').click();
+      rows = rowsText(doc);
+      check('metres mode shows metres first', /19\.9\d m/.test(rows), rows.slice(0, 60));
+      check('metres mode keeps the feet conversion', rows.indexOf('65.34 ft') !== -1, rows.slice(0, 120));
+
+      /* 5 — switch antenna type to a Yagi */
+      doc.querySelector('#tabs .tab[data-id="yagi"]').click();
+      var title = text(doc.getElementById('ant-title'));
+      check('Yagi tab selects the Yagi', title.indexOf('Yagi beam') === 0, title);
+      rows = rowsText(doc);
+      check('Yagi shows a reflector and directors', rows.indexOf('Reflector') !== -1 && rows.indexOf('Director 3') !== -1);
+      check('Yagi extra inputs appear', doc.getElementById('opt-dir') !== null);
+      var dirs = doc.getElementById('opt-dir');
+      dirs.value = '5';
+      fire(doc, dirs, 'input');
+      rows = rowsText(doc);
+      check('raising the director count adds elements',
+        rows.indexOf('Director 5') !== -1 && rows.indexOf('7 elements') !== -1, rows.slice(0, 80));
+      check('Yagi schematic redrawn', doc.getElementById('diagram').querySelector('svg') !== null);
+
+      /* 6 — quad tab and its own inputs */
+      doc.querySelector('#tabs .tab[data-id="cubicalQuad"]').click();
+      rows = rowsText(doc);
+      check('quad tab renders loop dimensions',
+        rows.indexOf('Driven loop') !== -1 && rows.indexOf('Reflector loop') !== -1, rows.slice(0, 80));
+      var loops = doc.getElementById('opt-qel');
+      loops.value = '3';
+      fire(doc, loops, 'input');
+      check('quad with 3 loops adds a director loop', rowsText(doc).indexOf('Director loop 1') !== -1);
+      check('quad schematic redrawn', doc.getElementById('diagram').querySelector('svg') !== null);
+
+      /* 7 — inverted-V apex angle */
+      doc.querySelector('#tabs .tab[data-id="invertedV"]').click();
+      var apex = doc.getElementById('opt-apex');
+      check('inverted-V exposes the apex angle', apex !== null && apex.value === '90');
+      var at90 = rowsText(doc);
+      apex.value = '180';
+      fire(doc, apex, 'input');
+      var at180 = rowsText(doc);
+      check('a 180° apex differs from the 90° default', at90 !== at180);
+      check('the flat setting keeps the pull-down populated', doc.querySelectorAll('#tabs .tab').length === 10);
+
+      /* 8 — length factor slider */
+      doc.querySelector('#tabs .tab[data-id="dipole"]').click();
+      var setFreq = doc.getElementById('freq');
+      setFreq.value = '14.175';
+      fire(doc, setFreq, 'input');
+      var factor = doc.getElementById('factor');
+      factor.value = '1';
+      fire(doc, factor, 'input');
+      check('length factor 1.0 gives the free-space half wave',
+        rowsText(doc).indexOf('10.57 m') !== -1, rowsText(doc).slice(0, 60));
+      check('factor badge follows the slider', text(doc.getElementById('factor-value')) === '1.00',
+        text(doc.getElementById('factor-value')));
+      factor.value = '0.95';
+      fire(doc, factor, 'input');
+
+      /* 9 — invalid frequency is reported, then recovers */
+      var bad = doc.getElementById('freq');
+      bad.value = '0';
+      fire(doc, bad, 'input');
+      check('zero frequency shows an input warning',
+        text(doc.getElementById('ant-title')) === 'Check your inputs', text(doc.getElementById('ant-title')));
+      bad.value = '14.175';
+      fire(doc, bad, 'input');
+      check('app recovers after a valid frequency',
+        text(doc.getElementById('ant-title')).indexOf('dipole') !== -1, text(doc.getElementById('ant-title')));
+
+      /* 10 — copy summary produces a plain-text report */
+      var model = frame.contentWindow.HamAntennaCalculator;
+      check('test hook exposed', !!model);
+      var report = model.summaryText(model.lastResult(), 'ft');
+      check('copy text contains the title, dimensions and notes',
+        report.indexOf('Half-wave dipole') !== -1 && report.indexOf('Total length') !== -1 &&
+        report.indexOf('Notes:') !== -1, report.slice(0, 80));
+
+      /* 11 — formatters */
+      check('inch formatter rounds to eighths', model.feetInches(31.4479) === '31 ft 5 3/8 in',
+        model.feetInches(31.4479));
+      check('unit formatter switches the primary unit', model.formatLength(10, 'm').main === '3.048 m',
+        model.formatLength(10, 'm').main);
+      check('unit formatter shows both units in feet mode',
+        model.formatLength(10, 'ft').sub.indexOf('3.048 m') === 0, model.formatLength(10, 'ft').sub);
+
+      /* 12 — every antenna type renders dimensions and a schematic */
+      var ids = ['dipole', 'invertedV', 'foldedDipole', 'efhw', 'quarterWaveVertical',
+                 'halfWaveVertical', 'fiveEighthVertical', 'yagi', 'fullWaveLoop', 'cubicalQuad'];
+      var broken = [], i, label, body;
+      for (i = 0; i < ids.length; i++) {
+        doc.querySelector('#tabs .tab[data-id="' + ids[i] + '"]').click();
+        label = text(doc.getElementById('ant-title'));
+        body = rowsText(doc);
+        if (!body.length || label === 'Check your inputs' ||
+            !doc.getElementById('diagram').querySelector('svg')) broken.push(ids[i]);
+      }
+      check('all ten antenna types render dimensions and a schematic', broken.length === 0, broken.join(', '));
+
+      /* 13 — actions stay safe */
+      try {
+        doc.getElementById('copy').click();
+        check('copy button click is safe', true);
+      } catch (e2) {
+        check('copy button click is safe', false, e2 && e2.message);
+      }
+    } catch (e) {
+      failed++;
+      lines.push('FAIL — harness error :: ' + (e && e.message ? e.message : e));
+    }
+
+    lines.push('');
+    lines.push((failed === 0 ? 'ALL UI TESTS PASSED' : 'UI FAILURES: ' + failed) + '  (' + passed + ' passed)');
+    out.textContent = lines.join('\n');
+    summary.textContent = failed === 0 ? 'ALL UI TESTS PASSED (' + passed + ')' : 'UI FAILURES: ' + failed;
+    summary.className = failed === 0 ? 'pass' : 'fail';
+  }
+
+  /* Wait until the app inside the iframe has actually rendered, then test it.
+     This avoids timing assumptions (and works under headless virtual time). */
+  var frame = document.getElementById('app-frame');
+  var attempts = 0;
+
+  function appReady() {
+    var doc = frame.contentDocument;
+    return !!(doc && doc.getElementById('rows') && doc.getElementById('rows').children.length > 0 &&
+      doc.getElementById('tabs') && doc.getElementById('tabs').children.length > 0);
+  }
+
+  function waitForApp() {
+    attempts++;
+    if (appReady()) { run(); return; }
+    if (attempts > 400) {                              // 400 × 50 ms
+      out.textContent = 'FAIL — the app never rendered its results';
+      summary.textContent = 'FAIL';
+      summary.className = 'fail';
+      return;
+    }
+    window.setTimeout(waitForApp, 50);
+  }
+
+  waitForApp();
+})();
+</script>
+</body>
+</html>

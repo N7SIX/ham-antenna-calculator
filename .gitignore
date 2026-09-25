@@ -1,0 +1,16 @@
+# OS clutter
+Thumbs.db
+desktop.ini
+.DS_Store
+
+# Editors
+.vscode/
+.idea/
+*.swp
+
+# Logs and scratch files
+*.log
+*.tmp
+
+# Node (only needed if tooling is added later)
+node_modules/
