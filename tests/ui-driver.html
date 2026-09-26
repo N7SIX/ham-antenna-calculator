@@ -199,7 +199,38 @@
         }
       })();
 
-      /* 14 — actions stay safe */
+      /* 14 — RF radiation pattern renders for every antenna type */
+      (function () {
+        var pids = ['dipole', 'invertedV', 'foldedDipole', 'efhw', 'quarterWaveVertical',
+          'halfWaveVertical', 'fiveEighthVertical', 'dualBandVertical', 'yagi', 'fullWaveLoop', 'cubicalQuad'];
+        var missing = [], k;
+        for (k = 0; k < pids.length; k++) {
+          doc.querySelector('#tabs .tab[data-id="' + pids[k] + '"]').click();
+          if (doc.getElementById('pattern').querySelectorAll('svg').length < 2) missing.push(pids[k]);
+        }
+        check('every antenna type shows azimuth + elevation patterns', missing.length === 0, missing.join(', '));
+        doc.querySelector('#tabs .tab[data-id="dipole"]').click();
+        check('pattern caption mentions the stats',
+          text(doc.getElementById('pattern')).indexOf('beamwidth') !== -1 ||
+          text(doc.getElementById('pattern')).indexOf('omni') !== -1,
+          text(doc.getElementById('pattern')).slice(0, 120));
+        var slider = doc.getElementById('pat-height');
+        check('height slider is visible for the dipole', slider && slider.offsetParent !== null);
+        slider.value = '1.5';
+        fire(doc, slider, 'input');
+        check('height slider reshapes the pattern',
+          text(doc.getElementById('pat-height-value')).indexOf('1.50') !== -1,
+          text(doc.getElementById('pat-height-value')));
+        doc.querySelector('#tabs .tab[data-id="quarterWaveVertical"]').click();
+        check('verticals hide the height slider',
+          doc.getElementById('pat-height-wrap').style.display === 'none');
+        doc.querySelector('#tabs .tab[data-id="dualBandVertical"]').click();
+        check('dual-band elevation shows both traces',
+          text(doc.getElementById('pattern')).indexOf('70 cm') !== -1,
+          text(doc.getElementById('pattern')).slice(0, 120));
+      })();
+
+      /* 15 — actions stay safe */
       try {
         doc.getElementById('copy').click();
         check('copy button click is safe', true);

@@ -91,7 +91,8 @@
     directorSpacing: 0.15,
     directorGap: 0.20,
     quadElements: 2,
-    quadSpacing: 0.15
+    quadSpacing: 0.15,
+    patternHeight: 0.5
   };
 
   var state = {};
@@ -430,6 +431,81 @@
     return svgWrap(inner, 270);
   }
 
+  /** Polar RF pattern cut: concentric −10/−20/−30 dB rings, lobe trace. */
+  function polarPlot(cut, opts) {
+    var o = opts || {};
+    var cx = 150, cy = 128, R = 92, floor = -30;
+    var full = o.full !== false;
+    var inner = '';
+    var rings = [0, -10, -20, -30], ri, rr;
+    for (ri = 0; ri < rings.length; ri++) {
+      rr = R * (1 + rings[ri] / 30);
+      inner += '<circle cx="' + cx + '" cy="' + cy + '" r="' + rr.toFixed(1) +
+        '" class="p-grid" fill="none"/>';
+      inner += svgText(cx + 4, cy - rr + 11, rings[ri] === 0 ? '0 dB' : String(rings[ri]),
+        'p-grid-label', 'start', 10);
+    }
+    var i, ang, pts = '', x, y, db;
+    var n = cut.length;
+    for (i = 0; i < n; i++) {
+      if (full) ang = (cut[i].deg - 90) * Math.PI / 180;
+      else ang = cut[i].deg * Math.PI / 180;
+      db = Math.max(cut[i].db, floor);
+      rr = R * (1 + db / 30);
+      x = cx + rr * Math.cos(ang);
+      y = cy + rr * Math.sin(ang);
+      pts += (i ? 'L' : 'M') + x.toFixed(1) + ' ' + y.toFixed(1);
+    }
+    pts += 'Z';
+    inner += '<path d="' + pts + '"' + (o.dashed ? ' class="p-lobe2"' : ' class="p-lobe"') + ' fill="none"/>';
+    var k, sa, sx1, sy1, sx2, sy2, lab;
+    var spokes = full ? [0, 45, 90, 135, 180, 225, 270, 315] : [0, 30, 60, 90];
+    for (k = 0; k < spokes.length; k++) {
+      if (full) sa = (spokes[k] - 90) * Math.PI / 180;
+      else sa = spokes[k] * Math.PI / 180;
+      sx1 = cx + 8 * Math.cos(sa); sy1 = cy + 8 * Math.sin(sa);
+      sx2 = cx + R * Math.cos(sa); sy2 = cy + R * Math.sin(sa);
+      inner += svgLine(sx1.toFixed(1), sy1.toFixed(1), sx2.toFixed(1), sy2.toFixed(1), 'p-grid', 1);
+      lab = String(spokes[k]) + '°';
+      inner += svgText((cx + (R + 14) * Math.cos(sa)).toFixed(1),
+        (cy + (R + 14) * Math.sin(sa) + 3).toFixed(1), lab, 'p-grid-label', 'middle', 9);
+    }
+    return inner;
+  }
+
+  /** Side-by-side azimuth + elevation polar plots with stats caption. */
+  function patternHtml(pat) {
+    var azSvg = '<svg viewBox="20 0 260 246" preserveAspectRatio="xMidYMid meet" role="img">' +
+      svgText(150, 14, 'Azimuth (top-down)', 'd-strong', 'middle', 12) +
+      polarPlot(pat.az, { full: true }) + '</svg>';
+    var elInner = polarPlot(pat.el, { full: false });
+    if (pat.el2) {
+      elInner += polarPlot(pat.el2, { full: false, dashed: true });
+    }
+    var horizonY = 128;
+    elInner = svgLine(58, horizonY, 242, horizonY, 'p-horizon', 1) +
+      svgText(236, horizonY - 5, 'horizon 0°', 'p-grid-label', 'end', 9) +
+      svgText(150, horizonY - 95, 'up 90°', 'p-grid-label', 'middle', 9) + elInner;
+    var elTitle = pat.id === 'dualBandVertical' ? 'Elevation — solid 2 m, dashed 70 cm' : 'Elevation (side view)';
+    var elSvg = '<svg viewBox="20 0 260 246" preserveAspectRatio="xMidYMid meet" role="img">' +
+      svgText(150, 14, elTitle, 'd-strong', 'middle', 12) + elInner + '</svg>';
+    var stats = 'peak ' + pat.gainText +
+      (pat.hpbwDeg === null ? '' : ' · beamwidth ≈ ' + pat.hpbwDeg + '°') +
+      ' · F/B ≈ ' + pat.fbDb + ' dB · deepest null ' + pat.nullDepthDb +
+      ' dB · takeoff ≈ ' + pat.peakElDeg + '°';
+    var caption = escapeHtml(pat.caption) +
+      ' Idealized teaching sketch over perfect ground, not a NEC model — confirm real builds in MMANA-GAL, EZNEC or 4nec2.';
+    if (caption.indexOf(escapeHtml(pat.gainText)) === 0) caption = caption.slice(escapeHtml(pat.gainText).length + 2);
+    return '<div class="pattern"><div class="pattern-plots">' +
+      '<div class="p-cell">' + azSvg +
+      '<p class="p-cap">0° up · bearings clockwise</p></div>' +
+      '<div class="p-cell">' + elSvg +
+      '<p class="p-cap">Rings every 10 dB · outer ring = peak (0 dB)</p></div>' +
+      '</div>' +
+      '<p class="hint pattern-stats">' + escapeHtml(stats) + '</p>' +
+      '<p class="hint">' + caption + '</p></div>';
+  }
+
   var DIAGRAMS = {
     dipole: diagramDipole,
     invertedV: diagramInvertedV,
@@ -518,9 +594,10 @@
   }
 
   function render() {
-    var res, diagram, d = dom;
+    var res, pat, diagram, d = dom;
     try {
       res = A.calc(state.type, state);
+      pat = A.radiationPattern ? A.radiationPattern(state.type, state) : null;
     } catch (e) {
       d.title.textContent = 'Check your inputs';
       d.summary.textContent = '';
@@ -529,6 +606,8 @@
       d.rows.innerHTML = '<p class="hint">' + escapeHtml(e.message || 'Invalid input') + '</p>';
       d.notes.innerHTML = '';
       d.formulas.innerHTML = '';
+      if (d.pattern) { d.pattern.innerHTML = ''; d.pattern.style.display = 'none'; }
+      if (d.patHeightWrap) d.patHeightWrap.style.display = 'none';
       return;
     }
 
@@ -542,11 +621,30 @@
     diagram = DIAGRAMS[state.type] ? DIAGRAMS[state.type](res, state.units) : '';
     d.diagram.innerHTML = diagram;
     d.diagram.style.display = diagram ? '' : 'none';
+    if (pat && d.pattern) {
+      d.pattern.innerHTML = '<h4 class="pattern-title">RF radiation pattern (idealized)</h4>' +
+        patternHtml(pat);
+      d.pattern.style.display = '';
+      if (d.patHeight && d.patHeightWrap) {
+        if (pat.heightApplies) {
+          d.patHeight.value = String(pat.heightLambda);
+          d.patHeightValue.textContent = pat.heightLambda.toFixed(2) + ' λ';
+          d.patHeightWrap.style.display = '';
+        } else {
+          d.patHeightWrap.style.display = 'none';
+        }
+      }
+    } else if (d.pattern) {
+      d.pattern.innerHTML = '';
+      d.pattern.style.display = 'none';
+      if (d.patHeightWrap) d.patHeightWrap.style.display = 'none';
+    }
     lastResult = res;
     lastType = type;
+    lastPattern = pat || null;
   }
 
-  var lastResult = null, lastType = null;
+  var lastResult = null, lastType = null, lastPattern = null;
 
   /* ------------------------------------------------------------------ *
    * Controls
@@ -727,6 +825,14 @@
       update();
     });
 
+    if (dom.patHeight) dom.patHeight.addEventListener('input', function () {
+      var v = parseFloat(dom.patHeight.value);
+      if (!isFinite(v)) return;
+      state.patternHeight = Math.min(2.5, Math.max(0.05, v));
+      dom.patHeightValue.textContent = state.patternHeight.toFixed(2) + ' λ';
+      update();
+    });
+
     dom.extra.addEventListener('input', function (e) {
       var input = e.target;
       if (!input || !input.getAttribute) return;
@@ -748,6 +854,21 @@
    * Boot
    * ------------------------------------------------------------------ */
 
+  function applyUrlOverrides() {
+    var m = /[?&]ant=([\w-]+)/.exec(window.location.search);
+    if (m) {
+      var i;
+      for (i = 0; i < TYPES.length; i++) {
+        if (TYPES[i].id === m[1]) { state.type = m[1]; break; }
+      }
+    }
+    m = /[?&]h=([\d.]+)/.exec(window.location.search);
+    if (m) {
+      var h = parseFloat(m[1]);
+      if (isFinite(h)) state.patternHeight = Math.min(2.5, Math.max(0.05, h));
+    }
+  }
+
   function init() {
     dom.tabs = $('tabs');
     if (!dom.tabs) return;                    // not the calculator page
@@ -762,6 +883,10 @@
     dom.summary = $('ant-summary');
     dom.meta = $('ant-meta');
     dom.diagram = $('diagram');
+    dom.pattern = $('pattern');
+    dom.patHeightWrap = $('pat-height-wrap');
+    dom.patHeight = $('pat-height');
+    dom.patHeightValue = $('pat-height-value');
     dom.rows = $('rows');
     dom.notes = $('notes');
     dom.formulas = $('formulas');
@@ -769,6 +894,7 @@
     dom.print = $('print');
 
     loadState();
+    applyUrlOverrides();
     buildTabs();
     buildBands();
     bindEvents();
@@ -785,7 +911,9 @@
       feetInches: feetInches,
       metaLine: metaLine,
       summaryText: summaryText,
-      lastResult: function () { return lastResult; }
+      patternHtml: patternHtml,
+      lastResult: function () { return lastResult; },
+      lastPattern: function () { return lastPattern; }
     };
   }
 

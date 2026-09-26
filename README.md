@@ -6,10 +6,16 @@ Share that link with anyone: it runs entirely in their browser — no account, n
 install, no tracking, and it works on phones and tablets as well as desktops.
 
 A dependency-free web app that calculates ham radio antenna dimensions for a
-chosen design frequency: **half-wave dipole, inverted-V, folded dipole, end-fed
-half wave, quarter-wave / ground-plane vertical, half-wave vertical,
-five-eighth-wave vertical, dual-band 2 m + 70 cm vertical, Yagi beams,
-full-wave loops and cubical quads.**
+chosen design frequency — plus an **idealized RF radiation pattern** (azimuth
+and elevation polar plots, with a mounting-height slider) — for a **half-wave
+dipole, inverted-V, folded dipole, end-fed half wave, quarter-wave /
+ground-plane vertical, half-wave vertical, five-eighth-wave vertical, dual-band
+2 m + 70 cm vertical, Yagi beams, full-wave loops and cubical quads.**
+
+Every result is shown in **feet and metres** (plus a feet + inches figure for
+cutting wire), together with a labelled schematic, builder notes and the exact
+formula used. The band preset includes a **2 m + 70 cm (dual)** entry that sets
+both design frequencies and jumps to the dual-band tab.
 
 Every result is shown in **feet and metres** (plus a feet + inches figure for
 cutting wire), together with a labelled schematic, builder notes and the exact
@@ -67,8 +73,34 @@ python3 -m http.server 8000 # macOS / Linux
    inverted-V apex angle, the dual-band 2 m / 70 cm pair, Yagi
    directors/spacings and quad loop count/spacing.
 5. **Copy results** into a notebook, or **Print / save as PDF**.
+6. Read the **RF radiation pattern** under the schematic: azimuth on the left,
+   elevation on the right, with beamwidth / F/B / null / takeoff stats. Drag
+   the **Pattern height** slider (0.05–2.50 λ) to watch the elevation lobes
+   split as the antenna goes up. Ground-plane verticals hide the slider —
+   their horizon lobe is fixed by the monopole length instead.
 
 The app remembers your last settings in `localStorage`.
+
+## Radiation patterns (idealized teaching sketches)
+
+Each tab renders two polar plots, normalized so each peak is **0 dB** with
+rings every 10 dB down to **−30 dB**:
+
+- **Dipole / folded dipole / EFHW / full-wave loop** — figure-8 azimuth
+  (nulls off the wire ends) over a two-ray perfect-ground elevation model.
+- **Inverted-V** — a softer figure-8: sloping legs partly fill the end nulls
+  and add high-angle fill.
+- **¼ λ, ½ λ, ⅝ λ verticals** — omnidirectional azimuth with the exact
+  monopole elevation factor (¼ λ: horizon doughnut; ⅝ λ: tight horizon lobe
+  plus a real high-angle lobe).
+- **Dual-band 2 m + 70 cm** — omni azimuth; elevation overlays solid 2 m
+  (¼ λ) and dashed 70 cm (¾ λ) traces.
+- **Yagi / cubical quad** — Gaussian main lobe sized by element count plus a
+  small back lobe; elevation takeoff follows the height slider.
+
+These are analytic sketches for choosing orientation and height at a glance —
+not NEC models. Height, ground, and nearby metal move real lobes around, so
+confirm beam builds in MMANA-GAL, EZNEC, 4nec2 or YO before cutting metal.
 
 ## Formulas
 
@@ -118,8 +150,8 @@ Both are adjustable in the UI.
 
 ## Tests
 
-The antenna maths has a 21-case suite with expected values derived independently
-from the published formulas, plus a 39-check UI smoke test that drives the real
+The antenna maths has a 22-case suite with expected values derived independently
+from the published formulas, plus a 45-check UI smoke test that drives the real
 page in an iframe.
 
 ```sh
@@ -148,8 +180,8 @@ chrome --headless=new --dump-dom tests/run-tests.html | findstr "ALL TESTS"
 ```
 index.html              page shell (controls, results, footer)
 styles.css              dark/light responsive theme, no frameworks
-antennas.js             pure calculation module (browser + Node)
-app.js                  UI layer: tabs, inputs, formatting, SVG schematics
+antennas.js             pure calculation module (browser + Node), incl. radiationPattern()
+app.js                  UI layer: tabs, inputs, formatting, SVG schematics + polar plots
 tests/test-cases.js     shared assertions (browser + Node)
 tests/antennas.test.js  Node runner
 tests/run-tests.html    browser runner

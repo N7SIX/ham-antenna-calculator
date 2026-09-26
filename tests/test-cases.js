@@ -290,6 +290,49 @@
       t.near(A.spaceFt(14.175, 0.5), 34.693864, 0.01, 'free-space half wave at 14.175 MHz');
     } },
 
+    { name: 'radiation patterns are well-formed teaching sketches', fn: function (t, A) {
+      var ids = Object.keys(A.calculators), i, p, k;
+      t.ok(typeof A.radiationPattern === 'function', 'pattern API is exported');
+      for (i = 0; i < ids.length; i++) {
+        p = A.radiationPattern(ids[i], { f: 14.175, f2: 433.5, patternHeight: 0.5 });
+        t.eq(p.az.length, 73, ids[i] + ': 73 azimuth samples');
+        t.eq(p.el.length, 46, ids[i] + ': 46 elevation samples');
+        t.ok(p.az[0].db === 0, ids[i] + ': azimuth normalized to its own peak');
+        t.ok(p.el[0].db <= 0 && p.el[0].db >= -30, ids[i] + ': elevation in the 0 to −30 dB window');
+        for (k = 0; k < p.az.length; k++) {
+          t.ok(isFinite(p.az[k].db) && p.az[k].db <= 0 && p.az[k].db >= -30, ids[i] + ': azimuth sample ' + k);
+        }
+        t.ok(p.caption.length > 40 && p.orientation.length > 10, ids[i] + ': captioned');
+        t.ok(typeof p.heightApplies === 'boolean', ids[i] + ': height flag');
+      }
+      var dip = A.radiationPattern('dipole', { patternHeight: 0.5 });
+      t.ok(dip.az[18].db < -20, 'dipole has deep nulls off the wire ends');
+      t.ok(dip.az[0].db === 0 && dip.az[36].db === 0, 'dipole is symmetric broadside');
+      t.ok(dip.peakElDeg >= 20 && dip.peakElDeg <= 40, 'dipole at ½ λ peaks near 30°');
+      var low = A.radiationPattern('dipole', { patternHeight: 0.1 });
+      t.ok(low.peakElDeg > dip.peakElDeg, 'lower antennas radiate higher');
+      var q = A.radiationPattern('quarterWaveVertical', {});
+      t.ok(q.az.every(function (s) { return s.db === 0; }), 'quarter wave is omnidirectional');
+      t.ok(q.el[0].db === 0 && q.el[45].db < -15, 'quarter wave peaks at the horizon, null overhead');
+      var five = A.radiationPattern('fiveEighthVertical', {});
+      t.ok(five.el[0].db === 0, 'five-eighth peaks at the horizon');
+      var hi = null, j;
+      for (j = 20; j < five.el.length; j++) if (five.el[j].db > -12) { hi = five.el[j].deg; break; }
+      t.ok(hi !== null && hi >= 50, 'five-eighth carries a real high-angle lobe');
+      var dual = A.radiationPattern('dualBandVertical', {});
+      t.ok(dual.el2 && dual.el2.length === 46, 'dual band ships both 2 m and 70 cm cuts');
+      t.ok(dual.el[0].db === 0, '2 m cut normalized to its own peak');
+      var dualPeak = -99, dj;
+      for (dj = 0; dj < dual.el2.length; dj++) if (dual.el2[dj].db > dualPeak) dualPeak = dual.el2[dj].db;
+      t.ok(dualPeak === 0, '70 cm cut normalized to its own peak');
+      var y = A.radiationPattern('yagi', { directors: 3, patternHeight: 0.5 });
+      t.ok(y.fbDb >= 8, 'a 5-element Yagi shows real front-to-back');
+      t.ok(y.hpbwDeg !== null && y.hpbwDeg < 120, 'Yagi beamwidth is directional');
+      var y0 = A.radiationPattern('yagi', { directors: 0, patternHeight: 0.5 });
+      t.ok(y0.hpbwDeg > y.hpbwDeg, 'fewer elements means a wider beam');
+      t.throws(function () { A.radiationPattern('notAnAntenna', {}); }, 'unknown type throws');
+    } },
+
     { name: 'radial, radiator and loop conventions', fn: function (t, A) {
       var v = A.calc('quarterWaveVertical', { f: 7.1 });
       t.ok(findRow(v, 'Each radial').ft > findRow(v, 'Radiator').ft, 'radials longer than radiator');

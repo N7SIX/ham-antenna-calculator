@@ -532,9 +532,199 @@
     };
   }
 
-  /* ------------------------------------------------------------------ *
-   * Registry and public API
-   * ------------------------------------------------------------------ */
+  var PAT_FLOOR_DB = -30;
+
+  function patLinToDb(e) {
+    var v = 20 * Math.log10(Math.max(e, 1e-6));
+    return v < PAT_FLOOR_DB ? PAT_FLOOR_DB : v;
+  }
+
+  function patNorm(lin) {
+    var i, m = 0, db = [];
+    for (i = 0; i < lin.length; i++) if (lin[i] > m) m = lin[i];
+    for (i = 0; i < lin.length; i++) db.push(m > 0 ? patLinToDb(lin[i] / m) : PAT_FLOOR_DB);
+    return db;
+  }
+
+  function patHeightLambda(opts) {
+    var h = num(opts && (opts.patternHeight !== undefined ? opts.patternHeight : opts.heightLambda), 0.5);
+    return Math.min(2.5, Math.max(0.05, h));
+  }
+
+  /** Half-wave wire: azimuth `phiDeg` from broadside — 1 broadside, 0 off the ends. */
+  function patDipoleAz(phiDeg) {
+    var p = phiDeg * Math.PI / 180;
+    var c = Math.cos(p);
+    if (Math.abs(c) < 1e-3) return 0;
+    return Math.abs(Math.cos(1.5707963268 * Math.sin(p)) / c);
+  }
+
+  /** Two-ray ground factor for horizontal polarization over perfect ground. */
+  function patHeightFactor(elDeg, h) {
+    return Math.abs(Math.sin(2 * Math.PI * h * Math.sin(elDeg * Math.PI / 180)));
+  }
+
+  /** Vertical monopole of length L (in wavelengths) over perfect ground. */
+  function patMonopoleEl(elDeg, L) {
+    var el = elDeg * Math.PI / 180, c = Math.cos(el);
+    if (c < 0.02) return 0;
+    var kL = 2 * Math.PI * L;
+    return Math.abs((Math.cos(kL * Math.sin(el)) - Math.cos(kL)) / c);
+  }
+
+  function patWrap180(d) {
+    d = d % 360;
+    if (d > 180) d -= 360;
+    if (d < -180) d += 360;
+    return d;
+  }
+
+  /** Directional azimuth: Gaussian main lobe plus a small back lobe. */
+  function patBeamAz(azDeg, elements, fbDb, wide) {
+    var w = Math.abs(patWrap180(azDeg));
+    var hpbw = wide * 90 / Math.sqrt(Math.max(2, elements));
+    var t = w / (hpbw / 2);
+    var main = Math.pow(2, -(t * t));
+    var bw = Math.abs(patWrap180(azDeg - 180));
+    var bt = bw / 18;
+    var back = Math.pow(10, -fbDb / 10) * Math.pow(2, -(bt * bt));
+    return Math.sqrt(main + back);
+  }
+
+  /** Horizontal half-wave wire, broadside elevation factor: 1 at horizon, 0 overhead. */
+  function patDipoleElFs(elDeg) {
+    var el = elDeg * Math.PI / 180, c = Math.cos(el);
+    if (c < 0.02) return 0;
+    return Math.abs(Math.cos(1.5707963268 * Math.sin(el)) / c);
+  }
+
+  function patRound1(x) { return Math.round(x * 10) / 10; }
+
+  function patDipoleCuts(h) {
+    var azLin = [], elLin = [], i;
+    for (i = 0; i <= 360; i += 5) azLin.push(patDipoleAz(i));
+    for (i = 0; i <= 90; i += 2) elLin.push(patDipoleElFs(i) * patHeightFactor(i, h));
+    return { azLin: azLin, elLin: elLin };
+  }
+
+  function patPack(id, azLin, elLin, el2Lin, meta, h) {
+    var azDb = patNorm(azLin), elDb = patNorm(elLin), el2Db = el2Lin ? patNorm(el2Lin) : null;
+    var az = [], el = [], el2 = null, k;
+    for (k = 0; k < azDb.length; k++) az.push({ deg: k * 5, db: patRound1(azDb[k]) });
+    for (k = 0; k < elDb.length; k++) el.push({ deg: k * 2, db: patRound1(elDb[k]) });
+    if (el2Db) {
+      el2 = [];
+      for (k = 0; k < el2Db.length; k++) el2.push({ deg: k * 2, db: patRound1(el2Db[k]) });
+    }
+    var peakEl = 0, peakV = -99;
+    for (k = 0; k < elDb.length; k++) if (elDb[k] > peakV) { peakV = elDb[k]; peakEl = k * 2; }
+    var m3 = 0;
+    while (m3 < azDb.length && azDb[m3] >= -3) m3++;
+    var caption = meta.gain + '. ' + meta.shape + ' ' + meta.orient;
+    if (meta.heightApplies) {
+      caption += ' Height ' + h.toFixed(2) + ' λ — first elevation lobe peaks near ' + peakEl + '°.';
+    } else if (id === 'dualBandVertical') {
+      var peak2 = 0, peak2V = -99;
+      for (k = 0; k < el2Db.length; k++) if (el2Db[k] > peak2V) { peak2V = el2Db[k]; peak2 = k * 2; }
+      caption += ' 2 m lobe peaks at the horizon; 70 cm first lobe peaks near ' + peak2 + '°.';
+    } else {
+      caption += ' Strongest at the horizon (0°).';
+    }
+    return {
+      id: id, az: az, el: el, el2: el2,
+      fbDb: patRound1(azDb[0] - azDb[36]),
+      hpbwDeg: (m3 * 5 >= 180) ? null : patRound1(2 * m3 * 5),
+      peakElDeg: peakEl, nullDepthDb: patRound1(Math.min.apply(null, azDb)),
+      gainText: meta.gain, caption: caption, orientation: meta.orient,
+      heightLambda: h, heightApplies: meta.heightApplies
+    };
+  }
+
+  function patVerticalCuts(L) {
+    var azLin = [], elLin = [], i;
+    for (i = 0; i <= 360; i += 5) azLin.push(1);
+    for (i = 0; i <= 90; i += 2) elLin.push(patMonopoleEl(i, L));
+    return { azLin: azLin, elLin: elLin };
+  }
+
+  /**
+   * Idealized azimuth + elevation cuts for one antenna type.
+   * az covers 0–360° in 5° steps, el 0–90° in 2° steps, each { deg, db }.
+   * Cuts are normalized so each peak is 0 dB, floor −30 dB.
+   */
+  function radiationPattern(id, opts) {
+    if (!CALCULATORS[id]) throw new Error('Unknown antenna type: ' + id);
+    var o = opts || {};
+    var h = patHeightLambda(o);
+    var cuts, cuts2 = null, meta, i, e, L2, n, fb, wide, g, d;
+    if (id === 'dipole' || id === 'foldedDipole' || id === 'efhw' || id === 'fullWaveLoop') {
+      cuts = patDipoleCuts(h);
+      meta = id === 'fullWaveLoop'
+        ? { gain: '≈ 3 dBi max', heightApplies: true,
+            orient: 'Loop plane faces 0°/180° (best); nulls edge-on at 90°/270°.',
+            shape: 'Broad figure-8, slightly fatter than a dipole, and quieter on receive.' }
+        : { gain: '≈ 2.2 dBi free space (≈ 8 dBi at the lobe peak, ½ λ over perfect ground)',
+            heightApplies: true,
+            orient: 'Azimuth 0° = broadside (best); 90°/270° = off the wire ends (nulls).',
+            shape: 'Figure-8 azimuth; elevation lobes are set by the height slider.' };
+      return patPack(id, cuts.azLin, cuts.elLin, null, meta, h);
+    }
+    if (id === 'invertedV') {
+      var apex = Math.min(180, Math.max(30, num(o.apexDeg, 90)));
+      var tilt = (180 - apex) / 2 * Math.PI / 180;
+      var wFill = 0.45 * Math.pow(Math.sin(tilt), 1.5);
+      var sUp = 0.5 * Math.sin(tilt);
+      var azLin = [], elLin = [];
+      for (i = 0; i <= 360; i += 5) azLin.push((1 - wFill) * patDipoleAz(i) + wFill);
+      for (i = 0; i <= 90; i += 2) {
+        e = i * Math.PI / 180;
+        var flat = patDipoleElFs(i) * patHeightFactor(i, h);
+        var high = Math.abs(Math.cos(2 * Math.PI * h * Math.sin(e)));
+        elLin.push(Math.sqrt(Math.pow((1 - sUp) * flat, 2) + Math.pow(sUp * high, 2)));
+      }
+      return patPack(id, azLin, elLin, null, {
+        gain: '≈ 2.0 dBi max', heightApplies: true,
+        orient: 'Azimuth 0° = broadside; the sloping legs partly fill the end nulls.',
+        shape: 'Softer figure-8 than a flat dipole, with kinder high-angle fill.'
+      }, h);
+    }
+    if (id === 'quarterWaveVertical' || id === 'halfWaveVertical' ||
+        id === 'fiveEighthVertical' || id === 'dualBandVertical') {
+      L2 = id === 'halfWaveVertical' ? 0.5 : (id === 'fiveEighthVertical' ? 0.625 : 0.25);
+      cuts = patVerticalCuts(L2);
+      if (id === 'dualBandVertical') cuts2 = patVerticalCuts(0.75);
+      meta = { gain: '≈ 5 dBi on 2 m over perfect ground; 70 cm splits higher', heightApplies: false,
+        orient: 'Omnidirectional in azimuth on both bands.',
+        shape: 'Solid trace = 2 m quarter-wave lobe; dashed trace = 70 cm ¾-wave with its extra high lobe.' };
+      if (id === 'quarterWaveVertical') meta = { gain: '≈ 5.2 dBi over perfect ground',
+        heightApplies: false, orient: 'Omnidirectional in azimuth — identical in all compass directions.',
+        shape: 'Classic ground-hugging doughnut: strongest at the horizon, null straight up.' };
+      if (id === 'halfWaveVertical') meta = { gain: '≈ 3 dBi', heightApplies: false,
+        orient: 'Omnidirectional in azimuth — identical in all compass directions.',
+        shape: 'Low, fat lobe hugging the horizon; less thirst for radials than a quarter wave.' };
+      if (id === 'fiveEighthVertical') meta = { gain: '≈ 5–6 dBi at the horizon over perfect ground',
+        heightApplies: false, orient: 'Omnidirectional in azimuth — identical in all compass directions.',
+        shape: 'Tight horizon lobe plus a weaker high-angle lobe — that second lobe is the price of the extra gain.' };
+      return patPack(id, cuts.azLin, cuts.elLin, cuts2 ? cuts2.elLin : null, meta, h);
+    }
+    d = Math.min(10, Math.max(0, Math.round(num(o.directors, 3))));
+    n = id === 'cubicalQuad'
+      ? Math.min(6, Math.max(2, Math.round(num(o.quadElements, 2))))
+      : 2 + d;
+    g = id === 'cubicalQuad' ? yagiGainDbi(2 * (n - 1)) - 0.2 : yagiGainDbi(n);
+    fb = id === 'cubicalQuad' ? Math.min(28, 13 + 2 * (2 * (n - 1))) : Math.min(25, 10 + 2 * n);
+    wide = id === 'cubicalQuad' ? 0.9 : 1;
+    var baz = [], bel = [];
+    for (i = 0; i <= 360; i += 5) baz.push(patBeamAz(i, n, fb, wide));
+    for (i = 0; i <= 90; i += 2) bel.push(patDipoleElFs(i) * patHeightFactor(i, h));
+    return patPack(id, baz, bel, null, {
+      gain: '≈ ' + g.toFixed(1) + ' dBi forward', heightApplies: true,
+      orient: 'Azimuth 0° = forward (toward the directors); 180° = backward.',
+      shape: 'Forward beam with a small back lobe; elevation takeoff is set by the height slider.'
+    }, h);
+  }
+
+  /* Registry and public API follows below. */
 
   var CALCULATORS = {
     dipole: dipole,
@@ -573,6 +763,7 @@
   return {
     calc: calc,
     calculators: CALCULATORS,
+    radiationPattern: radiationPattern,
     BANDS: BANDS,
     wavelength: wavelength,
     wireFt: wireFt,

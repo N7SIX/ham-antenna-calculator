@@ -265,6 +265,22 @@ input[type="range"] {
 .diagram .d-dash { stroke-dasharray: 4 4; }
 .diagram .d-faint { stroke: var(--line); }
 
+.pattern-wrap { margin-top: 0.85rem; }
+.pattern-title { margin: 0 0 0.4rem; font-size: 0.82rem; text-transform: uppercase; letter-spacing: 0.12em; color: var(--muted); }
+.pattern-plots { display: grid; grid-template-columns: 1fr 1fr; gap: 0.65rem; }
+@media (max-width: 640px) { .pattern-plots { grid-template-columns: 1fr; } }
+.pattern-plots svg { width: 100%; height: auto; background: var(--panel-2); border: 1px solid var(--line-soft); border-radius: var(--radius-sm); }
+.p-cell { min-width: 0; }
+.p-cap { margin: 0.3rem 0.2rem 0; text-align: center; font-size: 0.68rem; line-height: 1.35; color: var(--muted); }
+.p-grid { stroke: var(--line); }
+.p-grid-label { fill: var(--muted); font-family: var(--sans); }
+.p-horizon { stroke: var(--accent-2); stroke-dasharray: 3 3; }
+.p-lobe { stroke: var(--accent); stroke-width: 2.5; }
+.p-lobe2 { stroke: var(--accent-2); stroke-width: 2; stroke-dasharray: 5 3; }
+.pattern-stats { color: var(--text); font-weight: 600; }
+.pattern-height { margin-top: 0.85rem; }
+.pattern-height input[type="range"] { width: 100%; accent-color: var(--accent); }
+
 .rows { display: grid; gap: 0.5rem; }
 
 .row {
