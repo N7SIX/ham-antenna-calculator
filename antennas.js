@@ -55,6 +55,7 @@
     { label: '6 m', mhz: 50.150 },
     { label: '4 m', mhz: 70.200 },
     { label: '2 m', mhz: 145.500 },
+    { label: '2 m + 70 cm (dual)', mhz: 145.500, f2: 433.500 },
     { label: '1.25 m', mhz: 223.500 },
     { label: '70 cm', mhz: 433.500 },
     { label: '33 cm', mhz: 915.000 },
@@ -485,6 +486,52 @@
     };
   }
 
+  /** Shared 1/4-wave-on-2m / 3/4-wave-on-70cm dual-band ground-plane vertical. */
+  function dualBandVertical(opts) {
+    var f2 = num(opts && opts.f2, 433.500);
+    var f = freq(opts);
+    if (!isFinite(f2) || f2 <= 0) throw new Error('A positive second frequency in MHz is required.');
+    var k = factor(opts);
+    var lam = wavelength(f);
+    var l2 = wavelength(f2);
+    var radiator2 = 0.25 * lam.ft * k;     // quarter wave on 2 m, shortened
+    var radiator70 = 0.75 * l2.ft * k;     // three-quarter wave on 70 cm, shortened
+    var whip = (radiator2 + radiator70) / 2;
+    var radial2 = 0.25 * lam.ft;           // free-space quarter wave, 2 m
+    var radial70 = 0.25 * l2.ft;           // free-space quarter wave, 70 cm
+    var delta = Math.abs(radiator2 - radiator70);
+    var rows = [
+      L('Shared whip — cut length', whip,
+        'compromise between ¼ λ on 2 m (' + round(radiator2, 3) + ' ft) and ¾ λ on 70 cm (' +
+        round(radiator70, 3) + ' ft); differs by ' + round(delta, 3) + ' ft, tune for lowest SWR on both bands'),
+      L('Classic 19 in whip check', 19 / 12,
+        'a 19 in whip is ¼ λ near 147 MHz and ¾ λ near 440 MHz — start long and trim'),
+      L('2 m radials — each (×4)', radial2, 'free-space ¼ λ at ' + round(f, 3) + ' MHz, droop 30–45°'),
+      L('70 cm radials — each (×4)', radial70, 'free-space ¼ λ at ' + round(f2, 3) + ' MHz, alternate with the 2 m set'),
+      L('2 m wavelength (free space)', lam.ft),
+      L('70 cm wavelength (free space)', l2.ft),
+      L('Mounting height', 0.25 * lam.ft + 6, 'get the feedpoint at least ¼ λ on 2 m above ground or roof'),
+      T('Feed-point impedance', '≈ 50 Ω on both bands', 'one 50 Ω coax, choke balun at the feedpoint'),
+      T('SWR target', '≤ 1.5 : 1 both bands', 'a shared whip is a compromise — trim in ⅛ in steps and re-check both bands')
+    ];
+    return {
+      id: 'dualBandVertical',
+      title: 'Dual-band 2 m / 70 cm vertical',
+      summary: 'One whip that is a quarter wave on 2 m and three-quarter wave on 70 cm, with a dual radial set.',
+      rows: rows,
+      notes: [
+        'Start with the compromise whip length, then trim in small steps: the 2 m resonance moves roughly three times slower than the 70 cm resonance.',
+        'Use four 2 m radials plus four 70 cm radials (8 total), alternating around the mount and drooped 30–45° for a 50 Ω match.',
+        'A plain 19 in whip with 19 in radials is already close on both bands; the calculator refines it for your exact design frequencies.',
+        'Keep the whip vertical and clear of metal gutters or railings — at 70 cm even a few centimetres of nearby metal detunes the antenna.'
+      ],
+      formulas: [
+        'Whip = (¼ λ₂ₘ × factor + ¾ λ₇₀cm × factor) / 2',
+        'Radials = free-space ¼ λ on each band = ' + round(FT_PER_MHZ / 4, 1) + ' / f(MHz) ft'
+      ]
+    };
+  }
+
   /* ------------------------------------------------------------------ *
    * Registry and public API
    * ------------------------------------------------------------------ */
@@ -497,6 +544,7 @@
     quarterWaveVertical: quarterWaveVertical,
     halfWaveVertical: halfWaveVertical,
     fiveEighthVertical: fiveEighthVertical,
+    dualBandVertical: dualBandVertical,
     yagi: yagi,
     fullWaveLoop: fullWaveLoop,
     cubicalQuad: cubicalQuad
@@ -509,6 +557,14 @@
     var f = freq(opts);
     var res = fn(opts || {});
     res.f = f;
+    // Only the dual-band calculator reports a second design frequency; every
+    // other type shares the default f2 state but must not display it.
+    if (id === 'dualBandVertical') {
+      var f2 = num(opts && opts.f2, NaN);
+      res.f2 = isFinite(f2) && f2 > 0 ? f2 : null;
+    } else {
+      res.f2 = null;
+    }
     res.lambda = wavelength(f);
     res.factor = factor(opts);
     return res;

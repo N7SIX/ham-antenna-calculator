@@ -27,6 +27,7 @@
     { id: 'quarterWaveVertical', label: '¼ λ vertical' },
     { id: 'halfWaveVertical', label: '½ λ vertical' },
     { id: 'fiveEighthVertical', label: '⅝ λ vertical' },
+    { id: 'dualBandVertical', label: '2 m + 70 cm', options: ['dual'] },
     { id: 'yagi', label: 'Yagi', options: ['yagi'] },
     { id: 'fullWaveLoop', label: 'Full-wave loop' },
     { id: 'cubicalQuad', label: 'Cubical quad', options: ['quad'] }
@@ -37,6 +38,14 @@
       '<div class="field"><label for="opt-apex">Apex angle (°)</label>' +
       '<input id="opt-apex" type="number" min="30" max="180" step="5" data-key="apexDeg" value="90">' +
       '<p class="hint">90° is the standard field layout; 180° is a flat dipole.</p></div>',
+    dual:
+      '<div class="field-row">' +
+      '<div class="field"><label for="opt-f">2 m design frequency (MHz)</label>' +
+      '<input id="opt-f" type="number" min="100" max="600" step="0.001" data-key="f" value="145.500"></div>' +
+      '<div class="field"><label for="opt-f2">70 cm design frequency (MHz)</label>' +
+      '<input id="opt-f2" type="number" min="300" max="600" step="0.001" data-key="f2" value="433.500"></div>' +
+      '</div>' +
+      '<p class="hint">Compromise whip: ¼ λ on 2 m and ¾ λ on 70 cm, one feedline. The band preset sets both.</p>',
     foldedSpacing:
       '<div class="field"><label for="opt-spacing">Conductor spacing (mm)</label>' +
       '<input id="opt-spacing" type="number" min="20" max="300" step="5" data-key="spacingM" data-divisor="1000" value="50">' +
@@ -71,6 +80,7 @@
 
   var DEFAULTS = {
     f: 14.175,
+    f2: 433.500,
     units: 'ft',
     factor: 0.95,
     type: 'dipole',
@@ -396,6 +406,30 @@
     return svgWrap(inner, 210);
   }
 
+  function diagramDualBand(res, units) {
+    var baseY = 190, baseX = 320;
+    var radiatorPx = 168, topY = baseY - radiatorPx;
+    var f2 = typeof res.f2 === 'number' && isFinite(res.f2) ? res.f2 : 433.5;
+    var inner =
+      svgLine(baseX, topY, baseX, baseY, 'd-stroke', 4) +
+      svgText(baseX + 10, topY + 30, '¼ λ @ 2 m', 'd-text', 'start', 11) +
+      svgText(baseX + 10, topY + 46, '¾ λ @ 70 cm', 'd-text', 'start', 11) +
+      svgDot(baseX, baseY) +
+      // Long 2 m radial pair (slightly longer lines) + short 70 cm pair.
+      svgLine(baseX, baseY, baseX - 76, baseY + 40, 'd-stroke-alt', 2.5) +
+      svgLine(baseX, baseY, baseX + 76, baseY + 40, 'd-stroke-alt', 2.5) +
+      svgLine(baseX, baseY, baseX - 28, baseY + 44, 'd-stroke', 2.5) +
+      svgLine(baseX, baseY, baseX + 28, baseY + 44, 'd-stroke', 2.5) +
+      dimV(238, topY, baseY, main(res, 'Shared whip', units)) +
+      svgText(baseX - 84, baseY + 58, main(res, '2 m radials', units), 'd-text', 'middle', 11) +
+      svgText(baseX + 84, baseY + 62, main(res, '70 cm radials', units), 'd-text', 'middle', 11) +
+      svgText(baseX, baseY + 80, '4 × 2 m + 4 × 70 cm radials, one 50 Ω feed', 'd-strong', 'middle', 12) +
+      svgLine(70, 250, 570, 250, 'd-faint d-dash', 1.5) +
+      svgText(574, 254, 'ground', 'd-text', 'start', 11) +
+      svgText(baseX + 12, baseY + 24, 'feed', 'd-text', 'start', 12);
+    return svgWrap(inner, 270);
+  }
+
   var DIAGRAMS = {
     dipole: diagramDipole,
     invertedV: diagramInvertedV,
@@ -404,6 +438,7 @@
     quarterWaveVertical: diagramVertical,
     halfWaveVertical: diagramVertical,
     fiveEighthVertical: diagramVertical,
+    dualBandVertical: diagramDualBand,
     yagi: diagramYagi,
     fullWaveLoop: diagramLoop,
     cubicalQuad: diagramQuad
@@ -426,7 +461,9 @@
   }
 
   function metaLine(res) {
-    return fixed(res.f, 3) + ' MHz  ·  λ = ' + fixed(res.lambda.m) + ' m (' + fixed(res.lambda.ft) + ' ft)' +
+    var line = fixed(res.f, 3) + ' MHz';
+    if (typeof res.f2 === 'number' && isFinite(res.f2)) line += ' + ' + fixed(res.f2, 3) + ' MHz';
+    return line + '  ·  λ = ' + fixed(res.lambda.m) + ' m (' + fixed(res.lambda.ft) + ' ft)' +
       '  ·  length factor ' + res.factor.toFixed(2);
   }
 
@@ -538,18 +575,36 @@
   }
 
   function syncBand() {
-    var i, matched = '';
+    var i, matched = '', b, f2;
+    var dualMode = state.type === 'dualBandVertical';
     for (i = 0; i < A.BANDS.length; i++) {
-      if (Math.abs(A.BANDS[i].mhz - state.f) < 0.0005) matched = String(A.BANDS[i].mhz);
+      b = A.BANDS[i];
+      var isDual = !(b.f2 === undefined || b.f2 === null);
+      if (dualMode && !isDual) continue;   // dual tab only matches dual presets
+      if (!dualMode && isDual) continue;   // single-band tabs ignore dual presets
+      if (Math.abs(b.mhz - state.f) >= 0.0005) continue;
+      if (!isDual) {
+        if (!matched) matched = String(b.mhz);
+      } else {
+        f2 = typeof state.f2 === 'number' ? state.f2 : NaN;
+        if (Math.abs(b.f2 - f2) < 0.0005) { matched = String(b.mhz) + '|' + String(b.f2); break; }
+      }
     }
     dom.band.value = matched;
   }
 
   function buildBands() {
-    var html = '<option value="">Custom…</option>', i, b;
+    var html = '<option value="">Custom…</option>', i, b, value, blabel;
     for (i = 0; i < A.BANDS.length; i++) {
       b = A.BANDS[i];
-      html += '<option value="' + b.mhz + '">' + escapeHtml(b.label + ' — ' + b.mhz.toFixed(3) + ' MHz') + '</option>';
+      if (b.f2 === undefined || b.f2 === null) {
+        value = String(b.mhz);
+        blabel = b.label + ' — ' + b.mhz.toFixed(3) + ' MHz';
+      } else {
+        value = String(b.mhz) + '|' + String(b.f2);
+        blabel = b.label + ' — ' + b.mhz.toFixed(3) + ' + ' + b.f2.toFixed(3) + ' MHz';
+      }
+      html += '<option value="' + value + '">' + escapeHtml(blabel) + '</option>';
     }
     dom.band.innerHTML = html;
     syncBand();
@@ -641,8 +696,15 @@
 
     dom.band.addEventListener('change', function () {
       if (!dom.band.value) return;
-      state.f = parseFloat(dom.band.value);
+      var parts = String(dom.band.value).split('|');
+      state.f = parseFloat(parts[0]);
+      if (parts.length > 1) {
+        state.f2 = parseFloat(parts[1]);
+        if (state.type === 'dipole') state.type = 'dualBandVertical';
+      }
       dom.freq.value = String(state.f);
+      syncBand();
+      syncExtras();
       update();
     });
 
@@ -650,6 +712,7 @@
       var v = parseFloat(dom.freq.value);
       state.f = isFinite(v) ? v : NaN;      // render() reports the problem
       syncBand();
+      if (state.type === 'dualBandVertical') syncExtras();
       update();
     });
 
@@ -672,6 +735,8 @@
       var div = parseFloat(input.getAttribute('data-divisor') || '1');
       var v = parseFloat(input.value);
       state[key] = isFinite(v) ? v / div : NaN;   // NaN → calculator falls back to its default
+      if (key === 'f' && isFinite(state.f)) dom.freq.value = String(state.f);
+      if (key === 'f' || key === 'f2') syncBand();
       update();
     });
 

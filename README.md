@@ -8,7 +8,13 @@ install, no tracking, and it works on phones and tablets as well as desktops.
 A dependency-free web app that calculates ham radio antenna dimensions for a
 chosen design frequency: **half-wave dipole, inverted-V, folded dipole, end-fed
 half wave, quarter-wave / ground-plane vertical, half-wave vertical,
-five-eighth-wave vertical, Yagi beams, full-wave loops and cubical quads.**
+five-eighth-wave vertical, dual-band 2 m + 70 cm vertical, Yagi beams,
+full-wave loops and cubical quads.**
+
+Every result is shown in **feet and metres** (plus a feet + inches figure for
+cutting wire), together with a labelled schematic, builder notes and the exact
+formula used. The band preset includes a **2 m + 70 cm (dual)** entry that sets
+both design frequencies and jumps to the dual-band tab.
 
 Every result is shown in **feet and metres** (plus a feet + inches figure for
 cutting wire), together with a labelled schematic, builder notes and the exact
@@ -53,11 +59,13 @@ python3 -m http.server 8000 # macOS / Linux
 ## Using it
 
 1. Pick a **band preset** or type a **frequency in MHz** (the centre of the part
-   of the band you use most).
+   of the band you use most). The **2 m + 70 cm (dual)** preset sets both
+   design frequencies and opens the dual-band vertical tab.
 2. Choose **feet** or **metres**.
 3. Leave the **length factor** at `0.95` unless you have a reason to change it.
 4. Pick an **antenna type** and read the dimensions — per-type inputs cover the
-   inverted-V apex angle, Yagi directors/spacings and quad loop count/spacing.
+   inverted-V apex angle, the dual-band 2 m / 70 cm pair, Yagi
+   directors/spacings and quad loop count/spacing.
 5. **Copy results** into a notebook, or **Print / save as PDF**.
 
 The app remembers your last settings in `localStorage`.
@@ -110,8 +118,8 @@ Both are adjustable in the UI.
 
 ## Tests
 
-The antenna maths has a 20-case suite with expected values derived independently
-from the published formulas, plus a 34-check UI smoke test that drives the real
+The antenna maths has a 21-case suite with expected values derived independently
+from the published formulas, plus a 39-check UI smoke test that drives the real
 page in an iframe.
 
 ```sh

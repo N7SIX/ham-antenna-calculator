@@ -46,7 +46,7 @@
       if (!doc) throw new Error('iframe document not accessible — serve this page over http://');
 
       /* 1 — initial render */
-      check('app booted: tabs generated', doc.querySelectorAll('#tabs .tab').length === 10,
+      check('app booted: tabs generated', doc.querySelectorAll('#tabs .tab').length === 11,
         'found ' + doc.querySelectorAll('#tabs .tab').length);
       check('initial title is the dipole', text(doc.getElementById('ant-title')).indexOf('dipole') !== -1,
         text(doc.getElementById('ant-title')));
@@ -115,7 +115,8 @@
       fire(doc, apex, 'input');
       var at180 = rowsText(doc);
       check('a 180° apex differs from the 90° default', at90 !== at180);
-      check('the flat setting keeps the pull-down populated', doc.querySelectorAll('#tabs .tab').length === 10);
+      check('the flat setting keeps the pull-down populated', doc.querySelectorAll('#tabs .tab').length === 11,
+        'found ' + doc.querySelectorAll('#tabs .tab').length);
 
       /* 8 — length factor slider */
       doc.querySelector('#tabs .tab[data-id="dipole"]').click();
@@ -161,7 +162,7 @@
 
       /* 12 — every antenna type renders dimensions and a schematic */
       var ids = ['dipole', 'invertedV', 'foldedDipole', 'efhw', 'quarterWaveVertical',
-                 'halfWaveVertical', 'fiveEighthVertical', 'yagi', 'fullWaveLoop', 'cubicalQuad'];
+                 'halfWaveVertical', 'fiveEighthVertical', 'dualBandVertical', 'yagi', 'fullWaveLoop', 'cubicalQuad'];
       var broken = [], i, label, body;
       for (i = 0; i < ids.length; i++) {
         doc.querySelector('#tabs .tab[data-id="' + ids[i] + '"]').click();
@@ -170,9 +171,35 @@
         if (!body.length || label === 'Check your inputs' ||
             !doc.getElementById('diagram').querySelector('svg')) broken.push(ids[i]);
       }
-      check('all ten antenna types render dimensions and a schematic', broken.length === 0, broken.join(', '));
+      check('all eleven antenna types render dimensions and a schematic', broken.length === 0, broken.join(', '));
 
-      /* 13 — actions stay safe */
+      /* 13 — dual-band preset sets both frequencies and switches to the dual tab */
+      (function () {
+        var dualBand = doc.getElementById('band');
+        var dualVal = null, o;
+        for (o = 0; o < dualBand.options.length; o++) {
+          if (dualBand.options[o].value.indexOf('|') !== -1) { dualVal = dualBand.options[o].value; break; }
+        }
+        check('a dual-band preset exists', !!dualVal, 'no f|f2 option found');
+        if (dualVal) {
+          doc.querySelector('#tabs .tab[data-id="dipole"]').click();
+          dualBand.value = dualVal;
+          fire(doc, dualBand, 'change');
+          check('dual preset switches to the dual-band tab',
+            text(doc.getElementById('ant-title')).indexOf('Dual-band') !== -1,
+            text(doc.getElementById('ant-title')));
+          check('dual preset sets both frequencies',
+            doc.getElementById('freq').value === '145.5' &&
+            doc.getElementById('opt-f2').value.indexOf('433.5') === 0,
+            doc.getElementById('freq').value + ' / ' + text(doc.getElementById('opt-f2')));
+          check('dual-band schematic drawn',
+            doc.getElementById('diagram').querySelector('svg') !== null);
+          check('whip length shown for the dual-band vertical',
+            rowsText(doc).indexOf('Shared whip') !== -1, rowsText(doc).slice(0, 80));
+        }
+      })();
+
+      /* 14 — actions stay safe */
       try {
         doc.getElementById('copy').click();
         check('copy button click is safe', true);

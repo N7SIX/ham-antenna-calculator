@@ -199,16 +199,37 @@
       t.eq(countRows(biggest, /^Director loop \d+/), 8, 'quad loop count is clamped to 6 elements');
     } },
 
+    { name: 'dual-band 2 m + 70 cm vertical', fn: function (t, A) {
+      var res = A.calc('dualBandVertical', { f: 145.5, f2: 433.5 });
+      var whip = findRow(res, 'Shared whip'), r2 = findRow(res, '2 m radials'), r70 = findRow(res, '70 cm radials');
+      t.near(whip.ft, 1.611041, 0.01, 'compromise whip length');
+      t.near(r2.ft, 1.689985, 0.01, '2 m radial = free-space quarter wave');
+      t.near(r70.ft, 0.567227, 0.01, '70 cm radial = free-space quarter wave');
+      t.ok(r2.ft > r70.ft, '2 m radials are longer than 70 cm radials');
+      t.ok(Math.abs(r2.ft - whip.ft) < 0.15, 'whip is close to a plain 2 m quarter wave (the classic 19 in whip)');
+      t.eq(res.f, 145.5, 'echoes the 2 m design frequency');
+      t.eq(res.f2, 433.5, 'echoes the 70 cm design frequency');
+      t.throws(function () { A.calc('dualBandVertical', { f: 145.5, f2: 0 }); }, 'rejects a bad second frequency');
+      t.ok(A.BANDS.some(function (b) { return Math.abs(b.mhz - 145.5) < 1e-9 && Math.abs((b.f2 || 0) - 433.5) < 1e-9; }),
+        'band table includes the dual-band preset');
+    } },
+
     { name: 'every calculator returns well-formed results', fn: function (t, A) {
-      var ids = Object.keys(A.calculators), i, res, j, r;
-      t.ok(ids.length >= 10, 'ten or more antenna types are registered');
+      var ids = Object.keys(A.calculators), i, res, j, r, fRef, lamRef;
+      t.ok(ids.length >= 11, 'eleven antenna types are registered');
       for (i = 0; i < ids.length; i++) {
-        res = A.calc(ids[i], { f: 14.175 });
+        if (ids[i] === 'dualBandVertical') {
+          res = A.calc(ids[i], { f: 145.5, f2: 433.5 });
+          fRef = 145.5; lamRef = A.wavelength(145.5).m;
+        } else {
+          res = A.calc(ids[i], { f: 14.175 });
+          fRef = 14.175; lamRef = 21.149380;
+        }
         t.ok(res.rows.length >= 5, ids[i] + ': has result rows');
         t.ok(res.notes.length >= 3 && res.formulas.length >= 2, ids[i] + ': has notes and formulas');
         t.ok(res.title.length > 0 && res.summary.length > 0, ids[i] + ': has a title and summary');
-        t.near(res.lambda.m, 21.149380, 0.01, ids[i] + ': wavelength metadata');
-        t.eq(res.f, 14.175, ids[i] + ': echoes the design frequency');
+        t.near(res.lambda.m, lamRef, 0.01, ids[i] + ': wavelength metadata');
+        t.eq(res.f, fRef, ids[i] + ': echoes the design frequency');
         for (j = 0; j < res.rows.length; j++) {
           r = res.rows[j];
           if (typeof r.ft === 'number') {
@@ -225,7 +246,9 @@
       var i, j, k, res, r;
       for (i = 0; i < freqs.length; i++) {
         for (j = 0; j < ids.length; j++) {
-          res = A.calc(ids[j], { f: freqs[i] });
+          res = ids[j] === 'dualBandVertical'
+            ? A.calc(ids[j], { f: 145.5, f2: freqs[i] })
+            : A.calc(ids[j], { f: freqs[i] });
           for (k = 0; k < res.rows.length; k++) {
             r = res.rows[k];
             t.ok(typeof r.ft !== 'number' || (isFinite(r.ft) && r.ft > 0),
@@ -259,7 +282,7 @@
       t.ok(A.BANDS.length >= 15, 'covers the amateur bands');
       t.ok(A.BANDS.some(function (b) { return Math.abs(b.mhz - 14.175) < 1e-9; }), 'includes 20 m');
       for (i = 1; i < A.BANDS.length; i++) {
-        t.ok(A.BANDS[i].mhz > A.BANDS[i - 1].mhz, 'bands ascend in frequency');
+        t.ok(A.BANDS[i].mhz >= A.BANDS[i - 1].mhz, 'bands ascend in frequency');
       }
       t.near(A.ftToM(1), 0.3048, 0.0001, 'ft → m');
       t.near(A.mToFt(1), 3.280840, 0.001, 'm → ft');
