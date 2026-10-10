@@ -83,8 +83,34 @@ The app remembers your last settings in `localStorage`.
 
 ## Radiation patterns (idealized teaching sketches)
 
-Each tab renders two polar plots, normalized so each peak is **0 dB** with
-rings every 10 dB down to **−30 dB**:
+Each tab renders an instrument-style pattern panel made of three plots plus a
+read-out grid, all normalized so each peak is **0 dB**, with **major rings every
+10 dB to −30 dB** and unlabelled **minor rings every 5 dB**:
+
+1. **Azimuth rose (top-down)** — a compass rose (N/E/S/W spokes) with the
+   envelope filled, the peak lobe marked, each null ringed, and the −3 dB
+   beamwidth drawn as an arc.
+2. **Elevation slice (side view)** — the same treatment with a horizon line and
+   the takeoff angle marked.
+3. **Elevation vs angle (cartesian)** — a plain dB-against-degrees plot, which
+   is much easier to read for exact null and lobe angles. A second dashed trace
+   appears on the dual-band vertical (2 m solid, 70 cm dashed).
+
+Below the plots, a legend explains the symbols and a **Pattern read-out** grid
+reports the derived numbers:
+
+| Metric | Meaning |
+| --- | --- |
+| Polarization | Vertical or horizontal, relative to the ground |
+| Pattern class | Omnidirectional, bidirectional or directional beam |
+| Peak gain | Analytic estimate for the selected element count |
+| Azimuth peak bearing / −3 dB beamwidth | Where the main lobe points and how wide it is |
+| Front-to-back, front-to-rear, front-to-side | dB ratios an operator uses to compare beams; reported as `n/a (omni)` when the azimuth is round, because a 0 dB ratio would say nothing |
+| Azimuth nulls | Bearing ranges at or below −20 dB, with the deepest sample |
+| Takeoff angle, elevation beamwidth, elevation lobes | The vertical cut, which is what sets DX vs. local coverage |
+| Ground model, normalization | Perfect ground with no losses; 0 dB = peak |
+
+Antenna-by-antenna:
 
 - **Dipole / folded dipole / EFHW / full-wave loop** — figure-8 azimuth
   (nulls off the wire ends) over a two-ray perfect-ground elevation model.

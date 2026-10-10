@@ -218,6 +218,22 @@
       svgText(x + 8, (y1 + y2) / 2 + 4, label, 'd-strong', 'start', 13);
   }
 
+  function svgCircle(cx, cy, r, cls, sw) {
+    return '<circle cx="' + (+cx).toFixed(2) + '" cy="' + (+cy).toFixed(2) + '" r="' + (+r).toFixed(2) +
+      '" class="' + (cls || 'd-stroke') + '"' + (sw ? ' stroke-width="' + sw + '"' : '') + ' fill="none"/>';
+  }
+
+  /** Small filled marker used for pattern peaks and nulls. */
+  function svgMarker(x, y, cls) {
+    return '<circle cx="' + (+x).toFixed(2) + '" cy="' + (+y).toFixed(2) + '" r="3.4" class="' + cls + '"/>';
+  }
+
+  /** Raw SVG path with a class — used by the pattern lobe traces. */
+  function svgPath(d, cls, fill) {
+    return '<path d="' + d + '" class="' + cls + '"' +
+      (fill ? ' fill="' + fill + '"' : ' fill="none"') + '/>';
+  }
+
   function svgRect(x, y, w, h, cls, sw) {
     return '<rect x="' + x + '" y="' + y + '" width="' + w + '" height="' + h + '" class="' +
       (cls || 'd-stroke') + '" stroke-width="' + (sw || 3) + '" fill="none"/>';
@@ -431,79 +447,340 @@
     return svgWrap(inner, 270);
   }
 
-  /** Polar RF pattern cut: concentric −10/−20/−30 dB rings, lobe trace. */
-  function polarPlot(cut, opts) {
-    var o = opts || {};
-    var cx = 150, cy = 128, R = 92, floor = -30;
-    var full = o.full !== false;
-    var inner = '';
-    var rings = [0, -10, -20, -30], ri, rr;
-    for (ri = 0; ri < rings.length; ri++) {
-      rr = R * (1 + rings[ri] / 30);
-      inner += '<circle cx="' + cx + '" cy="' + cy + '" r="' + rr.toFixed(1) +
-        '" class="p-grid" fill="none"/>';
-      inner += svgText(cx + 4, cy - rr + 11, rings[ri] === 0 ? '0 dB' : String(rings[ri]),
-        'p-grid-label', 'start', 10);
-    }
-    var i, ang, pts = '', x, y, db;
-    var n = cut.length;
-    for (i = 0; i < n; i++) {
-      if (full) ang = (cut[i].deg - 90) * Math.PI / 180;
-      else ang = cut[i].deg * Math.PI / 180;
-      db = Math.max(cut[i].db, floor);
-      rr = R * (1 + db / 30);
-      x = cx + rr * Math.cos(ang);
-      y = cy + rr * Math.sin(ang);
-      pts += (i ? 'L' : 'M') + x.toFixed(1) + ' ' + y.toFixed(1);
-    }
-    pts += 'Z';
-    inner += '<path d="' + pts + '"' + (o.dashed ? ' class="p-lobe2"' : ' class="p-lobe"') + ' fill="none"/>';
-    var k, sa, sx1, sy1, sx2, sy2, lab;
-    var spokes = full ? [0, 45, 90, 135, 180, 225, 270, 315] : [0, 30, 60, 90];
-    for (k = 0; k < spokes.length; k++) {
-      if (full) sa = (spokes[k] - 90) * Math.PI / 180;
-      else sa = spokes[k] * Math.PI / 180;
-      sx1 = cx + 8 * Math.cos(sa); sy1 = cy + 8 * Math.sin(sa);
-      sx2 = cx + R * Math.cos(sa); sy2 = cy + R * Math.sin(sa);
-      inner += svgLine(sx1.toFixed(1), sy1.toFixed(1), sx2.toFixed(1), sy2.toFixed(1), 'p-grid', 1);
-      lab = String(spokes[k]) + '°';
-      inner += svgText((cx + (R + 14) * Math.cos(sa)).toFixed(1),
-        (cy + (R + 14) * Math.sin(sa) + 3).toFixed(1), lab, 'p-grid-label', 'middle', 9);
-    }
-    return inner;
+  /* RF radiation pattern panel — instrument-style renderers.
+   * Everything is pure string building, matching the rest of app.js. */
+
+  var PAT_RING_DB = [0, -3, -6, -10, -15, -20, -25, -30];
+  var PAT_COMPASS = [[0, 'N'], [45, 'NE'], [90, 'E'], [135, 'SE'],
+    [180, 'S'], [225, 'SW'], [270, 'W'], [315, 'NW']];
+
+  /** dB → radius on a plot whose rim is 0 dB and whose centre is the floor. */
+  function patRadius(db, R, floor) {
+    return R * (1 + Math.max(db, floor) / -floor);
   }
 
-  /** Side-by-side azimuth + elevation polar plots with stats caption. */
-  function patternHtml(pat) {
-    var azSvg = '<svg viewBox="20 0 260 246" preserveAspectRatio="xMidYMid meet" role="img">' +
-      svgText(150, 14, 'Azimuth (top-down)', 'd-strong', 'middle', 12) +
-      polarPlot(pat.az, { full: true }) + '</svg>';
-    var elInner = polarPlot(pat.el, { full: false });
-    if (pat.el2) {
-      elInner += polarPlot(pat.el2, { full: false, dashed: true });
+  /** dB → fractional radius, shared by the polar and cartesian plots. */
+  function patFrac(db, floor) { return Math.max(0, 1 + db / -floor); }
+
+  /** Polar point for a bearing in degrees, 0° up and clockwise. */
+  function patPoint(cx, cy, r, deg) {
+    var a = (deg - 90) * Math.PI / 180;
+    return { x: cx + r * Math.cos(a), y: cy + r * Math.sin(a) };
+  }
+
+  /** Azimuth rose: dB rings, compass rose, lobe fill, peak and null markers. */
+  function polarRose(pat, geom) {
+    var cx = geom.cx, cy = geom.cy, R = geom.R, floor = pat.azimuth.floorDb;
+    var s = '', i, ri, db, r, pt, text;
+
+    for (ri = 0; ri < PAT_RING_DB.length; ri++) {
+      db = PAT_RING_DB[ri];
+      r = patRadius(db, R, floor);
+      s += svgCircle(cx, cy, r, db === 0 ? 'p-ring-zero' : (db % 10 === 0 ? 'p-ring' : 'p-ring-minor'));
+      // Label the major rings only — minors stay as unlabeled 5 dB ticks.
+      if (db % 10 === 0) {
+        text = db === 0 ? '0' : String(db);
+        s += svgText(cx + 5, cy - r + 11, text, 'p-ring-label', 'start', 9);
+      }
     }
-    var horizonY = 128;
-    elInner = svgLine(58, horizonY, 242, horizonY, 'p-horizon', 1) +
-      svgText(236, horizonY - 5, 'horizon 0°', 'p-grid-label', 'end', 9) +
-      svgText(150, horizonY - 95, 'up 90°', 'p-grid-label', 'middle', 9) + elInner;
-    var elTitle = pat.id === 'dualBandVertical' ? 'Elevation — solid 2 m, dashed 70 cm' : 'Elevation (side view)';
-    var elSvg = '<svg viewBox="20 0 260 246" preserveAspectRatio="xMidYMid meet" role="img">' +
-      svgText(150, 14, elTitle, 'd-strong', 'middle', 12) + elInner + '</svg>';
-    var stats = 'peak ' + pat.gainText +
-      (pat.hpbwDeg === null ? '' : ' · beamwidth ≈ ' + pat.hpbwDeg + '°') +
-      ' · F/B ≈ ' + pat.fbDb + ' dB · deepest null ' + pat.nullDepthDb +
-      ' dB · takeoff ≈ ' + pat.peakElDeg + '°';
+
+    for (i = 0; i < PAT_COMPASS.length; i++) {
+      pt = patPoint(cx, cy, R, PAT_COMPASS[i][0]);
+      s += svgLine(cx, cy, pt.x, pt.y, 'p-spoke', 0.6);
+      var outer = patPoint(cx, cy, R + 15, PAT_COMPASS[i][0]);
+      s += svgText(outer.x, outer.y + 3, PAT_COMPASS[i][1], 'p-compass', 'middle', 10);
+      s += svgText(outer.x, outer.y + 14, PAT_COMPASS[i][0] + '°', 'p-compass-deg', 'middle', 8);
+    }
+
+    // Lobe body: fan the samples out from the centre so the shape reads as an area.
+    var d = 'M' + cx + ' ' + cy, k, p;
+    for (k = 0; k < pat.az.length; k++) {
+      r = patRadius(pat.az[k].db, R, floor);
+      p = patPoint(cx, cy, r, pat.az[k].deg);
+      d += 'L' + p.x.toFixed(2) + ' ' + p.y.toFixed(2);
+    }
+    s += '<path class="p-fill" d="' + d + 'Z"/>';
+    s += '<path class="p-lobe" d="' + d + 'Z" fill="none"/>';
+
+    // Main lobe pointer, and the −3 dB arc that measures the beamwidth.
+    var peak = pat.azimuth.peakDeg;
+    p = patPoint(cx, cy, patRadius(0, R, floor), peak);
+    s += svgLine(cx, cy, p.x, p.y, 'p-peak-ray', 1);
+    s += svgMarker(p.x, p.y, 'p-peak-dot');
+    s += svgText(p.x + (peak > 90 && peak < 270 ? 8 : -8), p.y - 7,
+      pat.azimuth.omnidirectional ? 'omni' : peak + '°', 'p-peak-label',
+      (peak > 90 && peak < 270 ? 'start' : 'end'), 10);
+
+    if (pat.azimuth.beamwidthDeg !== null) {
+      var half = pat.azimuth.beamwidthDeg / 2;
+      s += patArc(cx, cy, patRadius(-3, R, floor), peak - half, peak + half, 'p-bw-arc');
+      var l = patPoint(cx, cy, R, peak - half), rr2 = patPoint(cx, cy, R, peak + half);
+      s += svgText(l.x, l.y - 5, '−3 dB', 'p-bw-label', 'middle', 8);
+      s += svgText(rr2.x, rr2.y - 5, '−3 dB', 'p-bw-label', 'middle', 8);
+    }
+
+    // Null ticks for the deep bearings.
+    var nulls = pat.azimuth.nullText ? pat.azimuth.nullText.split(/[,–]/) : [];
+    for (i = 0; i < nulls.length; i++) {
+      var nd = parseFloat(nulls[i]);
+      if (!isFinite(nd)) continue;
+      var np = patPoint(cx, cy, patRadius(-30, R, floor), nd);
+      s += svgMarker(np.x, np.y, 'p-null-dot');
+    }
+    return s;
+  }
+
+  /** SVG arc helper (degrees, clockwise from up). */
+  function patArc(cx, cy, r, fromDeg, toDeg, cls) {
+    var a = patPoint(cx, cy, r, fromDeg), b = patPoint(cx, cy, r, toDeg);
+    var large = Math.abs(toDeg - fromDeg) > 180 ? 1 : 0;
+    var sweep = toDeg > fromDeg ? 1 : 0;
+    return '<path class="' + cls + '" d="M' + a.x.toFixed(2) + ' ' + a.y.toFixed(2) +
+      'A' + r.toFixed(2) + ' ' + r.toFixed(2) + ' 0 ' + large + ' ' + sweep + ' ' +
+      b.x.toFixed(2) + ' ' + b.y.toFixed(2) + '" fill="none"/>';
+  }
+
+  /** Elevation half-plane: 0° horizon to 90° zenith, rings shared with the rose. */
+  function polarElevation(pat, geom) {
+    var cx = geom.cx, cy = geom.cy, R = geom.R, floor = pat.elevation.floorDb;
+    var s = '', i, ri, db, r, ang, p;
+
+    for (ri = 0; ri < PAT_RING_DB.length; ri++) {
+      db = PAT_RING_DB[ri];
+      r = patRadius(db, R, floor);
+      s += svgCircle(cx, cy, r, db === 0 ? 'p-ring-zero' : (db % 10 === 0 ? 'p-ring' : 'p-ring-minor'));
+      s += svgText(cx + 5, cy - r + 11, db === 0 ? '0' : String(db), 'p-ring-label', 'start', 9);
+    }
+
+    // Mirror the elevation cut to both sides of the vertical so the lobe reads
+    // as a real 3-D slice rather than a single ray.
+    var d = 'M' + cx + ' ' + cy, k, q;
+    for (k = 0; k < pat.el.length; k++) {
+      r = patRadius(pat.el[k].db, R, floor);
+      p = patPoint(cx, cy, r, pat.el[k].deg + 90);      // 0° → right along the horizon
+      d += 'L' + p.x.toFixed(2) + ' ' + p.y.toFixed(2);
+    }
+    for (k = pat.el.length - 1; k >= 0; k--) {
+      r = patRadius(pat.el[k].db, R, floor);
+      q = patPoint(cx, cy, r, 270 - pat.el[k].deg);     // mirrored to the left
+      d += 'L' + q.x.toFixed(2) + ' ' + q.y.toFixed(2);
+    }
+    s += svgPath(d + 'Z', 'p-fill');
+    s += svgPath(d + 'Z', 'p-lobe');
+
+    if (pat.el2) {
+      var d2 = 'M' + cx + ' ' + cy;
+      for (k = 0; k < pat.el2.length; k++) {
+        r = patRadius(pat.el2[k].db, R, floor);
+        p = patPoint(cx, cy, r, pat.el2[k].deg + 90);
+        d2 += 'L' + p.x.toFixed(2) + ' ' + p.y.toFixed(2);
+      }
+      for (k = pat.el2.length - 1; k >= 0; k--) {
+        r = patRadius(pat.el2[k].db, R, floor);
+        q = patPoint(cx, cy, r, 270 - pat.el2[k].deg);
+        d2 += 'L' + q.x.toFixed(2) + ' ' + q.y.toFixed(2);
+      }
+      s += svgPath(d2 + 'Z', 'p-lobe2');
+    }
+
+    // Horizon and zenith guides.
+    s += svgLine(cx - R - 12, cy, cx + R + 12, cy, 'p-horizon', 1.2);
+    var spokes = [0, 15, 30, 45, 60, 75, 90];
+    for (i = 0; i < spokes.length; i++) {
+      ang = (spokes[i] - 90) * Math.PI / 180;
+      var sx1 = cx + 7 * Math.cos(ang), sy1 = cy + 7 * Math.sin(ang);
+      var sx2 = cx + R * Math.cos(ang), sy2 = cy + R * Math.sin(ang);
+      s += svgLine(sx1.toFixed(1), sy1.toFixed(1), sx2.toFixed(1), sy2.toFixed(1), 'p-spoke', 0.6);
+      var lx = cx + (R + 15) * Math.cos(ang), ly = cy + (R + 15) * Math.sin(ang);
+      s += svgText(lx.toFixed(1), (ly + 3.5).toFixed(1), spokes[i] + '°', 'p-compass-deg', 'middle', 8);
+    }
+    s += svgText(cx + R + 30, cy + 3.5, 'horizon', 'p-compass', 'start', 9);
+    s += svgText(cx, cy - R - 22, 'zenith', 'p-compass', 'middle', 9);
+
+    // Peak / takeoff pointer.
+    var peak = pat.elevation.peakDeg;
+    p = patPoint(cx, cy, patRadius(0, R, floor), peak + 90);
+    s += svgLine(cx, cy, p.x, p.y, 'p-peak-ray', 1);
+    s += svgMarker(p.x, p.y, 'p-peak-dot');
+    s += svgText(p.x + (peak > 45 ? -8 : 8), p.y - 7, 'takeoff ' + peak + '°', 'p-peak-label',
+      peak > 45 ? 'end' : 'start', 10);
+    return s;
+  }
+
+  /** Cartesian dB-vs-angle plot — the classic engineering view of one cut. */
+  function patCartesian(cut, opts) {
+    var o = opts || {};
+    var L = 44, T = 18, W = 236, H = 150, floor = o.floor;
+    var maxDeg = o.maxDeg;
+    var x = function (deg) { return L + (deg / maxDeg) * W; };
+    var y = function (db) { return T + H * (1 - (db - floor) / -floor); };
+    var s = '', i, db, p;
+
+    s += svgPath('M' + L + ' ' + T + 'h' + W + 'v' + H + 'h' + (-W) + 'Z', 'p-plot-frame');
+
+    for (db = 0; db >= floor; db -= 5) {
+      s += svgLine(L, y(db).toFixed(1), (L + W).toFixed(1), y(db).toFixed(1),
+        db % 10 === 0 ? 'p-plot-grid' : 'p-plot-grid-minor', 0.8);
+      if (db % 10 === 0) s += svgText(L - 6, (y(db) + 3.5).toFixed(1), String(db), 'p-axis-label', 'end', 9);
+    }
+    for (i = 0; i <= maxDeg; i += o.step) {
+      s += svgLine(x(i).toFixed(1), T, x(i).toFixed(1), (T + H).toFixed(1), 'p-plot-grid-minor', 0.8);
+      if (i % (o.step * 2) === 0) {
+        s += svgText(x(i).toFixed(1), (T + H + 13).toFixed(1), i + '°', 'p-axis-label', 'middle', 9);
+      }
+    }
+
+    // Trace, then the filled area down to the floor.
+    var d = '', area = '';
+    for (i = 0; i < cut.length; i++) {
+      db = Math.max(cut[i].db, floor);
+      p = x(cut[i].deg).toFixed(2) + ' ' + y(db).toFixed(2);
+      d += (i ? 'L' : 'M') + p;
+      area += (i ? 'L' : 'M') + p;
+    }
+    area += 'L' + x(cut[cut.length - 1].deg).toFixed(2) + ' ' + y(floor).toFixed(2) +
+      'L' + x(cut[0].deg).toFixed(2) + ' ' + y(floor).toFixed(2) + 'Z';
+    s += svgPath(area, o.dashed ? 'p-fill2' : 'p-fill');
+    s += svgPath(d, o.dashed ? 'p-lobe2' : 'p-lobe');
+
+    // −3 dB marker at the peak with the beamwidth bracket.
+    var peakIdx = 0, pv = -99;
+    for (i = 0; i < cut.length; i++) if (cut[i].db > pv) { pv = cut[i].db; peakIdx = i; }
+    var px = x(cut[peakIdx].deg), py = y(pv);
+    s += svgMarker(px, py, 'p-peak-dot');
+    s += svgText((px + 7).toFixed(1), (py - 6).toFixed(1),
+      'peak ' + cut[peakIdx].deg + '° / ' + pv.toFixed(1) + ' dB', 'p-peak-label', 'start', 9);
+    var bw = o.beamwidthDeg;
+    if (bw !== null && bw !== undefined) {
+      var y3 = y(pv - 3);
+      s += svgLine((px - (bw / maxDeg) * W / 2).toFixed(1), y3.toFixed(1),
+        (px + (bw / maxDeg) * W / 2).toFixed(1), y3.toFixed(1), 'p-bw-arc', 1);
+      s += svgText(px.toFixed(1), (y3 - 5).toFixed(1), '−3 dB · ' + bw + '°', 'p-bw-label', 'middle', 8);
+    }
+    s += svgText(L, (T + H + 27).toFixed(1), o.xLabel, 'p-axis-title', 'start', 9);
+    s += svgText(L - 6, (T - 6).toFixed(1), 'dB', 'p-axis-title', 'end', 9);
+    return s;
+  }
+
+  /** One metric cell in the read-out grid. */
+  function patStat(label, value, unit, hint) {
+    return '<div class="pat-stat">' +
+      '<dt class="pat-stat-k">' + escapeHtml(label) + '</dt>' +
+      '<dd class="pat-stat-v">' + escapeHtml(value) +
+      (unit ? ' <span class="pat-stat-u">' + escapeHtml(unit) + '</span>' : '') +
+      (hint ? '<span class="pat-stat-h">' + escapeHtml(hint) + '</span>' : '') +
+      '</dd></div>';
+  }
+
+  /** Lead with the headline dBi figure from a prose gain string. */
+  function patGainShort(gainText) {
+    var m = /≈?\s*([\d.]+)(?:–([\d.]+))?\s*dBi/.exec(gainText);
+    if (m) return '≈ ' + m[1] + (m[2] ? '–' + m[2] : '') + ' dBi';
+    return gainText;
+  }
+
+  /** Whatever the gain string says *about* the number, once the figure is shown. */
+  function patGainBasis(gainText) {
+    var m = /≈?\s*[\d.]+(?:–[\d.]+)?\s*dBi\s*([\s\S]*)$/.exec(gainText);
+    var tail = m ? m[1].replace(/^[\s,;—-]+/, '') : '';
+    return tail || 'analytic estimate';
+  }
+
+  /** dB read-out with a fixed sign, so ratios scan consistently. */
+  function patDb(v) { return v === null || v === undefined ? '—' : (v > 0 ? '+' : '') + v.toFixed(1); }
+
+  /** Read-out grid: the numbers an operator actually wants from a pattern. */
+  function patStatsGrid(pat) {
+    var az = pat.azimuth, el = pat.elevation;
+    var s = '<dl class="pat-stats">';
+    s += patStat('Polarization', pat.polarization, '', 'relative to the ground');
+    s += patStat('Pattern class', pat.directional ? 'directional beam' :
+      (az.omnidirectional ? 'omnidirectional' : 'bidirectional'), '',
+      pat.directional ? 'one main lobe' :
+        (az.omnidirectional ? 'no azimuth nulls' : 'nulls off the element ends'));
+    s += patStat('Peak gain', patGainShort(pat.gainText), '', patGainBasis(pat.gainText));
+    s += patStat('Azimuth peak bearing', az.peakDeg + '°', 'from north', 'main lobe centre');
+    s += patStat('Azimuth −3 dB beamwidth', az.beamwidthDeg === null ? '360° (omni)' : az.beamwidthDeg + '°', '',
+      az.beamwidthDeg === null ? 'no azimuth nulls' :
+        (az.beamwidthDeg2 !== null && az.beamwidthDeg2 !== undefined && az.lobeCount > 1 ?
+          'per lobe · both lobes ' + az.beamwidthDeg2 + '°' : 'half-power width'));
+    if (az.omnidirectional) {
+      // A 0 dB ratio on a round pattern says nothing — label it instead of implying performance.
+      s += patStat('Front-to-back', 'n/a (omni)', '', 'a round pattern has no front or back');
+      s += patStat('Front-to-side', 'n/a (omni)', '', 'equal signal in every direction');
+    } else {
+      s += patStat('Front-to-back', patDb(az.frontToBackDb), 'dB', '0° vs 180°');
+      s += patStat('Front-to-rear (worst)', patDb(az.frontToRearDb), 'dB', '0° vs best of 90°–270°');
+      s += patStat('Front-to-side', patDb(az.frontToSideDb), 'dB', '0° vs best of 80°–100°');
+    }
+    s += patStat('Azimuth nulls', az.omnidirectional ? 'none — omni' : (az.nullText || 'none below −20 dB'), '',
+      'deepest sample −' + Math.abs(pat.nullDepthDb) + ' dB');
+    s += patStat('Takeoff angle', el.peakDeg + '°', 'elevation', 'strongest ray above the horizon');
+    s += patStat('Elevation −3 dB beamwidth', el.beamwidthDeg === null ? '—' : el.beamwidthDeg + '°', '',
+      'vertical lobe width');
+    s += patStat('Elevation lobes', el.lobeCount + '', '', el.lobes || 'horizon doughnut');
+    s += patStat('Ground model', 'perfect ground', '', 'no losses, no terrain');
+    s += patStat('Normalization', '0 dB = peak', '', 'rings every 5 dB to −' + Math.abs(az.floorDb) + ' dB');
+    return s + '</dl>';
+  }
+
+  /** Full pattern panel: rose, elevation slice, cartesian cut, metric grid. */
+  function patternHtml(pat) {
+    var rose = '<svg class="pat-svg" viewBox="0 0 400 380" preserveAspectRatio="xMidYMid meet" role="img" ' +
+      'aria-label="Azimuth radiation pattern">' +
+      svgText(200, 16, 'AZIMUTH — top-down', 'p-plot-title', 'middle', 11) +
+      polarRose(pat, { cx: 200, cy: 196, R: 122 }) +
+      svgText(200, 372, '0° up · bearings clockwise · rings every 5 dB', 'p-axis-title', 'middle', 9) +
+      '</svg>';
+
+    var elTitle = pat.id === 'dualBandVertical' ?
+      'ELEVATION — 2 m solid · 70 cm dashed' : 'ELEVATION — side view';
+    var elSvg = '<svg class="pat-svg" viewBox="0 0 400 380" preserveAspectRatio="xMidYMid meet" role="img" ' +
+      'aria-label="Elevation radiation pattern">' +
+      svgText(200, 16, elTitle, 'p-plot-title', 'middle', 11) +
+      polarElevation(pat, { cx: 200, cy: 236, R: 122 }) +
+      svgText(200, 372, '0° = horizon · 90° = zenith', 'p-axis-title', 'middle', 9) +
+      '</svg>';
+
+    var el2 = pat.el2 || null;
+    var cart = '<svg class="pat-svg" viewBox="0 0 300 210" preserveAspectRatio="xMidYMid meet" role="img" ' +
+      'aria-label="Elevation gain against angle">' +
+      svgText(150, 12, 'ELEVATION vs ANGLE', 'p-plot-title', 'middle', 11) +
+      patCartesian(pat.el, {
+        floor: pat.elevation.floorDb, maxDeg: 90, step: 15,
+        beamwidthDeg: pat.elevation.beamwidthDeg, xLabel: 'elevation angle'
+      });
+    if (el2) {
+      cart += patCartesian(el2, {
+        floor: pat.elevation.floorDb, maxDeg: 90, step: 15, dashed: true, xLabel: 'elevation angle'
+      });
+    }
+    cart += '</svg>';
+
+    var legend = '<ul class="pat-legend">' +
+      '<li><span class="pat-swatch pat-swatch-lobe"></span>azimuth / elevation envelope</li>' +
+      '<li><span class="pat-swatch pat-swatch-peak"></span>peak lobe</li>' +
+      '<li><span class="pat-swatch pat-swatch-null"></span>null (&le; &minus;20 dB)</li>' +
+      '<li><span class="pat-swatch pat-swatch-bw"></span>&minus;3 dB beamwidth</li>' +
+      (el2 ? '<li><span class="pat-swatch pat-swatch-alt"></span>second band (dashed)</li>' : '') +
+      '</ul>';
+
     var caption = escapeHtml(pat.caption) +
-      ' Idealized teaching sketch over perfect ground, not a NEC model — confirm real builds in MMANA-GAL, EZNEC or 4nec2.';
+      ' Idealized teaching sketch over perfect ground, not a NEC model — confirm real builds in ' +
+      'MMANA-GAL, EZNEC or 4nec2.';
     if (caption.indexOf(escapeHtml(pat.gainText)) === 0) caption = caption.slice(escapeHtml(pat.gainText).length + 2);
-    return '<div class="pattern"><div class="pattern-plots">' +
-      '<div class="p-cell">' + azSvg +
-      '<p class="p-cap">0° up · bearings clockwise</p></div>' +
-      '<div class="p-cell">' + elSvg +
-      '<p class="p-cap">Rings every 10 dB · outer ring = peak (0 dB)</p></div>' +
+
+    return '<div class="pattern">' +
+      '<div class="pat-plots">' +
+      '<div class="pat-cell">' + rose + '</div>' +
+      '<div class="pat-cell">' + elSvg + '</div>' +
       '</div>' +
-      '<p class="hint pattern-stats">' + escapeHtml(stats) + '</p>' +
-      '<p class="hint">' + caption + '</p></div>';
+      '<div class="pat-cart">' + cart + '</div>' +
+      legend +
+      '<h5 class="pat-sub">Pattern read-out</h5>' +
+      patStatsGrid(pat) +
+      '<p class="hint pat-note">' + caption + '</p>' +
+      '</div>';
   }
 
   var DIAGRAMS = {

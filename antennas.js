@@ -534,6 +534,13 @@
 
   var PAT_FLOOR_DB = -30;
 
+  /** Two lobe candidates closer together than this in level are one flat top. */
+  var PAT_LOBE_MERGE_DB = 0.5;
+
+  /** Level below the peak at which a lobe stops being worth naming. Anything
+   *  deeper than this is terrain-level noise, not a real secondary lobe. */
+  var PAT_LOBE_MIN_DB = -12;
+
   function patLinToDb(e) {
     var v = 20 * Math.log10(Math.max(e, 1e-6));
     return v < PAT_FLOOR_DB ? PAT_FLOOR_DB : v;
@@ -600,6 +607,136 @@
 
   function patRound1(x) { return Math.round(x * 10) / 10; }
 
+  /** Peak bearing of a closed cut, preferring a true centre over a seam edge. */
+  function patPeakIndex(cut) {
+    var i, bi = 0, wrap = cut.length > 1 && (cut[cut.length - 1].deg - cut[0].deg) >= 359;
+    for (i = 1; i < cut.length - (wrap ? 1 : 0); i++) if (cut[i].db > cut[bi].db) bi = i;
+    return bi;
+  }
+
+  /** Local maxima of a cut — the lobes worth naming — as [{deg, db}].
+   *
+   *  A nearly-flat top (a horizon doughnut, say) rounds to a plateau of equal
+   *  0.1 dB samples, which would otherwise read as several distinct lobes. Any
+   *  two candidates within PAT_LOBE_MERGE_DB of each other are therefore the
+   *  same lobe: keep the stronger of them. */
+  function patLobes(cut, minDb) {
+    var n = cut.length, wrap = n > 1 && (cut[n - 1].deg - cut[0].deg) >= 359;
+    var span = wrap ? n - 1 : n;
+    var at = function (j) { return cut[((j % span) + span) % span]; };
+    var raw = [], i, c, a, b;
+    for (i = 0; i < span; i++) {
+      c = at(i); a = at(i - 1); b = at(i + 1);
+      if (c.db >= minDb && c.db >= a.db && c.db > b.db) raw.push({ deg: c.deg, db: c.db });
+    }
+    var out = [], k;
+    for (k = 0; k < raw.length; k++) {
+      var last = out.length ? out[out.length - 1] : null;
+      if (last && last.db - raw[k].db <= PAT_LOBE_MERGE_DB) {
+        if (raw[k].db > last.db) out[out.length - 1] = raw[k];
+      } else {
+        out.push(raw[k]);
+      }
+    }
+    // A plateau can straddle the 0°/360° seam and get recorded twice.
+    if (out.length > 1 && Math.abs(out[0].db - out[out.length - 1].db) <= PAT_LOBE_MERGE_DB) {
+      if (out[out.length - 1].db > out[0].db) out[0] = out[out.length - 1];
+      out.pop();
+    }
+    // Every cut has a lobe, even when the whole thing sits below minDb (a tall
+    // antenna's elevation cut, say): fall back to the strongest sample so
+    // callers can always report a peak and a beamwidth.
+    if (!out.length) {
+      var pi = 0, j;
+      for (j = 1; j < cut.length; j++) if (cut[j].db > cut[pi].db) pi = j;
+      out.push({ deg: cut[pi].deg, db: cut[pi].db });
+    }
+    return out;
+  }
+
+  /** Bearings at or below `maxDb` — the deep nulls of a cut. */
+  function patNulls(cut, maxDb) {
+    var out = [], i;
+    for (i = 0; i < cut.length; i++) if (cut[i].db <= maxDb) out.push(cut[i].deg);
+    return out;
+  }
+
+  /** Half-power (−3 dB) width of one lobe, or null when the lobe runs off the cut. */
+  function patBeamwidth(cut, peakIdx) {
+    return patOneBeamwidth(cut, peakIdx, 0);
+  }
+
+  /** 3 dB width of the `order`-th equal-strength lobe of a cut (0 = strongest). */
+  function patOneBeamwidth(cut, peakIdx, order) {
+    var n = cut.length, wrap = n > 1 && (cut[n - 1].deg - cut[0].deg) >= 359;
+    var span = wrap ? n - 1 : n;
+    // Indices are kept inside [0, span) so that `i % span` can never run past
+    // the end of the array — an open cut ends at span-1 and must read as an edge.
+    var idx = function (j) { return ((j % span) + span) % span; };
+    var seen = -1, i = peakIdx, guard = 0;
+    while (guard++ < span * 2 + 2) {
+      if (idx(i) > peakIdx && cut[idx(i)].db >= cut[peakIdx].db - 0.3) seen++;
+      if (seen === order) break;
+      i++;
+    }
+    if (seen !== order) return null;
+    i = idx(i);
+    var lim = cut[i].db - 3;
+    if (lim < PAT_FLOOR_DB) return null;
+    var back = i, fwd = i, g = 0, b, f;
+    while (g++ < span) {
+      b = idx(back - 1);
+      if (b === back) return null;                        // ran off an open end
+      if (cut[b].db < lim) break;
+      back = b;
+    }
+    g = 0;
+    while (g++ < span) {
+      f = idx(fwd + 1);
+      if (f === fwd) return null;                         // ran off an open end
+      if (cut[f].db < lim) break;
+      fwd = f;
+    }
+    var width = (cut[fwd].deg + 360 - cut[back].deg) % 360;
+    return patRound1(width === 0 ? 360 : width);
+  }
+
+  /** Strongest sample inside an inclusive bearing window. */
+  function patMaxIn(cut, fromDeg, toDeg) {
+    var best = -99, i;
+    for (i = 0; i < cut.length; i++) {
+      if (cut[i].deg >= fromDeg && cut[i].deg <= toDeg && cut[i].db > best) best = cut[i].db;
+    }
+    return best === -99 ? null : best;
+  }
+
+  /** Merge a bearing list into readable ranges: [90,270] → "90°–270°". */
+  function patRanges(degs) {
+    var out = [], i, start = null, prev = null;
+    for (i = 0; i < degs.length; i++) {
+      if (start === null) { start = degs[i]; prev = degs[i]; continue; }
+      if (degs[i] - prev <= 10) { prev = degs[i]; continue; }
+      out.push(start === prev ? start + '°' : start + '°–' + prev + '°');
+      start = degs[i]; prev = degs[i];
+    }
+    if (start !== null) out.push(start === prev ? start + '°' : start + '°–' + prev + '°');
+    return out.join(', ');
+  }
+
+  /** Merged list of the strongest lobe in a cut per compass quadrant. */
+  function patLobeText(lobes) {
+    var i, out = [];
+    for (i = 0; i < lobes.length; i++) {
+      out.push(lobes[i].deg + '° (' + (lobes[i].db > 0 ? '+' : '') + lobes[i].db.toFixed(1) + ' dB)');
+    }
+    return out.join(', ');
+  }
+
+  var PAT_VERTICALS = {
+    quarterWaveVertical: 1, halfWaveVertical: 1, fiveEighthVertical: 1, dualBandVertical: 1
+  };
+  var PAT_BEAMS = { yagi: 1, cubicalQuad: 1 };
+
   function patDipoleCuts(h) {
     var azLin = [], elLin = [], i;
     for (i = 0; i <= 360; i += 5) azLin.push(patDipoleAz(i));
@@ -620,6 +757,19 @@
     for (k = 0; k < elDb.length; k++) if (elDb[k] > peakV) { peakV = elDb[k]; peakEl = k * 2; }
     var m3 = 0;
     while (m3 < azDb.length && azDb[m3] >= -3) m3++;
+    var azOmni = azDb.every(function (v) { return v >= -0.05; });
+    var azPeakIdx = patPeakIndex(az);
+    var azBeamDeg = patBeamwidth(az, azPeakIdx);
+    var rear = patMaxIn(az, 90, 270);
+    var side = patMaxIn(az, 80, 100);
+    var azLobes = patLobes(az, PAT_LOBE_MIN_DB);
+    var azNullTxt = patRanges(patNulls(az, -20));
+    // A figure-8 is two equal lobes: report the width of each, and of both.
+    var azBeamDeg2 = azLobes.length > 1 ? patOneBeamwidth(az, azPeakIdx, 1) : null;
+    var azLobeText = azOmni ? 'omnidirectional (no azimuth nulls)' : patLobeText(azLobes);
+    var elPeakIdx = 0, elPeakV = -99;
+    for (k = 0; k < el.length; k++) if (el[k].db > elPeakV) { elPeakV = el[k].db; elPeakIdx = k; }
+    var elLobes = patLobes(el, PAT_LOBE_MIN_DB);
     var caption = meta.gain + '. ' + meta.shape + ' ' + meta.orient;
     if (meta.heightApplies) {
       caption += ' Height ' + h.toFixed(2) + ' λ — first elevation lobe peaks near ' + peakEl + '°.';
@@ -636,6 +786,32 @@
       hpbwDeg: (m3 * 5 >= 180) ? null : patRound1(2 * m3 * 5),
       peakElDeg: peakEl, nullDepthDb: patRound1(Math.min.apply(null, azDb)),
       gainText: meta.gain, caption: caption, orientation: meta.orient,
+      /* Derived read-outs for the pattern panel. */
+      azimuth: {
+        omnidirectional: azOmni,
+        peakDeg: az[azPeakIdx].deg,
+        beamwidthDeg: azOmni ? null : azBeamDeg,
+        lobeCount: azOmni ? 1 : azLobes.length,
+        lobes: azLobeText,
+        beamwidthDeg2: azBeamDeg2,
+        nullText: azNullTxt,
+        frontToBackDb: patRound1(azDb[0] - azDb[36]),
+        frontToRearDb: rear === null ? null : patRound1(azDb[0] - rear),
+        frontToSideDb: side === null ? null : patRound1(azDb[0] - side),
+        floorDb: PAT_FLOOR_DB,
+        stepDeg: 5
+      },
+      elevation: {
+        peakDeg: el[elPeakIdx].deg,
+        beamwidthDeg: patBeamwidth(el, elPeakIdx),
+        lobeCount: elLobes.length,
+        lobes: patLobeText(elLobes),
+        nullText: patRanges(patNulls(el, -20)),
+        floorDb: PAT_FLOOR_DB,
+        stepDeg: 2
+      },
+      polarization: PAT_VERTICALS[id] ? 'Vertical' : 'Horizontal',
+      directional: !!PAT_BEAMS[id],
       heightLambda: h, heightApplies: meta.heightApplies
     };
   }
