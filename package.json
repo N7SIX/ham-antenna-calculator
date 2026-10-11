@@ -1,6 +1,6 @@
 {
   "name": "ham-antenna-calculator",
-  "version": "1.1.0",
+  "version": "7.6.1",
   "description": "Dependency-free ham radio antenna dimension calculator with idealized RF radiation patterns.",
   "private": true,
   "author": "N7SIX",

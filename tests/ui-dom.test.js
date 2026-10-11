@@ -456,11 +456,11 @@ var sb = htmlText(ensure('statusbar').innerHTML);
 check('the status bar reports the frequency', /\bf\b/.test(sb) && /MHz/.test(sb), sb);
 check('the status bar reports wavelength', /λ/.test(sb), sb);
 check('the status bar reports the length factor', /\bk\b/.test(sb), sb);
-check('the status bar stamps the model version', /v\s*1\.\d/.test(sb), sb);
+check('the status bar stamps the model version', /v\s*\d+\.\d/.test(sb), sb);
 check('the status bar matches the app constant',
   sb.indexOf('v ' + App.MODEL_VERSION) !== -1, sb);
 check('the footer version is filled in by the app',
-  /^v\d+\.\d+$/.test(ensure('foot-version').textContent),
+  /^v\d+\.\d+(\.\d+)?$/.test(ensure('foot-version').textContent),
   ensure('foot-version').textContent);
 clickTab('yagi');
 check('the status bar names the pattern class',
