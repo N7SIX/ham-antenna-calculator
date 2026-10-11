@@ -17,15 +17,6 @@ cutting wire), together with a labelled schematic, builder notes and the exact
 formula used. The band preset includes a **2 m + 70 cm (dual)** entry that sets
 both design frequencies and jumps to the dual-band tab.
 
-Every result is shown in **feet and metres** (plus a feet + inches figure for
-cutting wire), together with a labelled schematic, builder notes and the exact
-formula used. The band preset includes a **2 m + 70 cm (dual)** entry that sets
-both design frequencies and jumps to the dual-band tab.
-
-Every result is shown in **feet and metres** (plus a feet + inches figure for
-cutting wire), together with a labelled schematic, builder notes and the exact
-formula used.
-
 ## Hosting and sharing
 
 GitHub itself is the web server: **GitHub Pages** serves this repository's

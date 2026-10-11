@@ -397,6 +397,74 @@ input[type="range"] {
   line-height: 1.35;
 }
 .pat-note { margin: 0.7rem 0 0; font-size: 0.78rem; line-height: 1.55; }
+
+/* Data table + CSV export */
+.pat-data {
+  margin-top: 0.7rem;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-sm);
+  background: var(--panel);
+}
+.pat-data > summary {
+  cursor: pointer;
+  padding: 0.45rem 0.6rem;
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.pat-data > summary:hover { color: var(--text); }
+.pat-data[open] > summary { border-bottom: 1px solid var(--line-soft); color: var(--text); }
+.pat-data-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+  padding: 0.5rem 0.6rem 0;
+}
+.pat-data-actions .hint { margin: 0; }
+.pat-table-scroll { max-height: 260px; overflow: auto; margin: 0.5rem 0 0; }
+.pat-table { width: 100%; border-collapse: collapse; font-family: var(--mono); font-size: 0.72rem; }
+.pat-table th, .pat-table td {
+  padding: 0.15rem 0.6rem;
+  text-align: right;
+  border-bottom: 1px solid var(--line-soft);
+  white-space: nowrap;
+}
+.pat-table th {
+  position: sticky;
+  top: 0;
+  background: var(--panel-2);
+  color: var(--muted);
+  font-weight: 700;
+  text-align: right;
+}
+.pat-table td { color: var(--text); }
+.pat-table tbody tr:hover td { background: var(--panel-2); }
+
+/* Instrument status bar */
+.statusbar {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.15rem 0.9rem;
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 0.45rem 1.25rem;
+  background: var(--panel);
+  border-bottom: 1px solid var(--line);
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+.statusbar b { color: var(--accent-2); font-weight: 700; }
+.statusbar .sb-sep { color: var(--line); }
+.statusbar .sb-model { margin-left: auto; color: var(--accent); }
+
 .pattern-height { margin-top: 0.85rem; }
 .pattern-height input[type="range"] { width: 100%; accent-color: var(--accent); }
 
@@ -532,6 +600,14 @@ details.formulas code {
 
 .app-footer strong { color: var(--text); }
 
+.foot-meta {
+  margin: 0.5rem 0 0;
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+.foot-meta #foot-version { color: var(--accent); }
+
 .visually-hidden {
   position: absolute;
   width: 1px; height: 1px;
@@ -546,6 +622,8 @@ details.formulas code {
   body { background: #fff; color: #000; }
   .panel { box-shadow: none; }
   .controls, .actions, .tabs { display: none; }
+  .statusbar { display: none; }
+  .pat-data { display: none; }
   .layout { grid-template-columns: 1fr; }
 }
 

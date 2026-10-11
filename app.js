@@ -78,6 +78,14 @@
    * State
    * ------------------------------------------------------------------ */
 
+  /* Version of the dimension + pattern model. Bump this whenever a formula or
+   * a pattern factor changes, so a result can be reproduced later. */
+  var MODEL_VERSION = '1.1';
+
+  /* Shown wherever the pattern model is described, so nobody mistakes an
+   * analytic sketch for a measured or NEC-simulated pattern. */
+  var PATTERN_DISCLAIMER = 'idealized analytic pattern over perfect ground, not a NEC model';
+
   var DEFAULTS = {
     f: 14.175,
     f2: 433.500,
@@ -724,6 +732,82 @@
     return s + '</dl>';
   }
 
+  /** CSV of every sample, so a pattern can leave the browser as data.
+   *  Wide layout (one row per angle) because azimuth and elevation are sampled
+   *  at different steps; blank cells mean "not sampled at this angle". */
+  function patternCsv(pat) {
+    var rows = ['angle_deg,azimuth_db,elevation_db' + (pat.el2 ? ',elevation_band2_db' : '')];
+    var i, azDb = '', elDb = '', el2Db = '';
+    for (i = 0; i < Math.max(pat.az.length, pat.el.length); i++) {
+      azDb = i < pat.az.length ? pat.az[i].db.toFixed(1) : '';
+      elDb = i < pat.el.length ? pat.el[i].db.toFixed(1) : '';
+      if (pat.el2) el2Db = ',' + (i < pat.el2.length ? pat.el2[i].db.toFixed(1) : '');
+      rows.push((i < pat.az.length ? pat.az[i].deg : '') + ',' + azDb + ',' + elDb + el2Db);
+    }
+    return rows.join('\n');
+  }
+
+  /** Filesystem-safe stem for the CSV download. */
+  function patternFileStem(pat) {
+    var f = state.f;
+    return pat.id + '-' + (isFinite(f) ? String(Math.round(f * 1000)) : 'pattern') + 'MHz';
+  }
+
+  /** Collapsible data table + CSV export, so the sketch is analysable offline. */
+  function patDataDetails(pat) {
+    var head = '<tr><th scope="col">Angle (°)</th><th scope="col">Azimuth (dB)</th>' +
+      '<th scope="col">Elevation (dB)</th>' +
+      (pat.el2 ? '<th scope="col">Elevation, band 2 (dB)</th>' : '') + '</tr>';
+    var body = '', i, cells;
+    for (i = 0; i < Math.max(pat.az.length, pat.el.length); i++) {
+      cells = (i < pat.az.length ? pat.az[i].deg : '') + '</td><td>' +
+        (i < pat.az.length ? pat.az[i].db.toFixed(1) : '');
+      cells = '<td>' + cells + '</td><td>' +
+        (i < pat.el.length ? pat.el[i].db.toFixed(1) : '');
+      if (pat.el2) cells += '</td><td>' + (i < pat.el2.length ? pat.el2[i].db.toFixed(1) : '');
+      body += '<tr>' + cells + '</td></tr>';
+    }
+    return '<details class="pat-data">' +
+      '<summary>Pattern data table &amp; CSV export</summary>' +
+      '<div class="pat-data-actions">' +
+      '<button type="button" class="btn pat-csv" data-stem="' + escapeHtml(patternFileStem(pat)) + '">' +
+      'Export CSV</button>' +
+      '<span class="hint">' + pat.az.length + ' azimuth + ' + pat.el.length +
+      ' elevation samples, 0 dB = peak.</span>' +
+      '</div>' +
+      '<div class="pat-table-scroll"><table class="pat-table"><thead>' + head +
+      '</thead><tbody>' + body + '</tbody></table></div>' +
+      '</details>';
+  }
+
+  /** Hand the CSV to the browser as a download, with a clipboard fallback. */
+  function exportPatternCsv(pat, btn) {
+    var csv = patternCsv(pat);
+    var name = patternFileStem(pat) + '-pattern.csv';
+    try {
+      if (window.URL && window.URL.createObjectURL && window.Blob) {
+        var url = window.URL.createObjectURL(new window.Blob([csv], { type: 'text/csv' }));
+        var a = document.createElement('a');
+        a.href = url;
+        a.download = name;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.setTimeout(function () { window.URL.revokeObjectURL(url); }, 0);
+        return true;
+      }
+    } catch (e) { /* fall through to the clipboard path */ }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(csv).then(
+        function () { if (btn) btn.textContent = 'CSV copied ✓'; },
+        function () { if (btn) btn.textContent = 'Copy blocked'; }
+      );
+      window.setTimeout(function () { if (btn) btn.textContent = 'Export CSV'; }, 1800);
+      return true;
+    }
+    return false;
+  }
+
   /** Full pattern panel: rose, elevation slice, cartesian cut, metric grid. */
   function patternHtml(pat) {
     var rose = '<svg class="pat-svg" viewBox="0 0 400 380" preserveAspectRatio="xMidYMid meet" role="img" ' +
@@ -780,6 +864,7 @@
       '<h5 class="pat-sub">Pattern read-out</h5>' +
       patStatsGrid(pat) +
       '<p class="hint pat-note">' + caption + '</p>' +
+      patDataDetails(pat) +
       '</div>';
   }
 
@@ -867,6 +952,7 @@
     for (i = 0; i < res.notes.length; i++) lines.push('- ' + res.notes[i]);
     lines.push('');
     lines.push('Starting dimensions only — cut long, then trim for resonance. Verify with antenna modelling software.');
+    lines.push('Model v' + MODEL_VERSION + ' — ' + PATTERN_DISCLAIMER);
     return lines.join('\n');
   }
 
@@ -919,9 +1005,36 @@
     lastResult = res;
     lastType = type;
     lastPattern = pat || null;
+    renderStatusBar(res, pat);
   }
 
   var lastResult = null, lastType = null, lastPattern = null;
+
+  /** Sticky instrument read-out: what produced the numbers on screen. */
+  function renderStatusBar(res, pat) {
+    if (!dom.statusbar) return;
+    if (dom.footVersion) dom.footVersion.textContent = 'v' + MODEL_VERSION;
+    var span = '<span class="sb-sep">·</span>';
+    var f = state.f;
+    var parts = [];
+    parts.push('f <b>' + (isFinite(f) ? f.toFixed(3) + ' MHz' : '—') + '</b>');
+    if (res && res.lambda) {
+      parts.push('λ <b>' + res.lambda.ft.toFixed(2) + ' ft</b>');
+    }
+    if (state.type === 'dualBandVertical' && isFinite(state.f2)) {
+      parts.push('f₂ <b>' + state.f2.toFixed(3) + ' MHz</b>');
+    }
+    parts.push('k <b>' + state.factor.toFixed(2) + '</b>');
+    if (pat && pat.heightApplies) {
+      parts.push('h <b>' + pat.heightLambda.toFixed(2) + ' λ</b>');
+    }
+    if (pat) {
+      parts.push('model <b class="sb-model">' + (pat.directional ? 'directional' : 'omni') +
+        ' · analytic</b>');
+    }
+    dom.statusbar.innerHTML = parts.join(span) + span +
+      'v<b>' + MODEL_VERSION + '</b>';
+  }
 
   /* ------------------------------------------------------------------ *
    * Controls
@@ -1125,6 +1238,13 @@
 
     dom.copy.addEventListener('click', copySummary);
     if (dom.print) dom.print.addEventListener('click', function () { window.print(); });
+    if (dom.pattern) dom.pattern.addEventListener('click', function (e) {
+      var btn = e.target;
+      if (!btn || !btn.closest) return;
+      btn = btn.closest('.pat-csv');
+      if (!btn || !lastPattern) return;
+      exportPatternCsv(lastPattern, btn);
+    });
   }
 
   /* ------------------------------------------------------------------ *
@@ -1161,6 +1281,8 @@
     dom.meta = $('ant-meta');
     dom.diagram = $('diagram');
     dom.pattern = $('pattern');
+    dom.statusbar = $('statusbar');
+    dom.footVersion = $('foot-version');
     dom.patHeightWrap = $('pat-height-wrap');
     dom.patHeight = $('pat-height');
     dom.patHeightValue = $('pat-height-value');
@@ -1189,6 +1311,10 @@
       metaLine: metaLine,
       summaryText: summaryText,
       patternHtml: patternHtml,
+      MODEL_VERSION: MODEL_VERSION,
+      patternCsv: patternCsv,
+      patternFileStem: patternFileStem,
+      exportPatternCsv: exportPatternCsv,
       lastResult: function () { return lastResult; },
       lastPattern: function () { return lastPattern; }
     };

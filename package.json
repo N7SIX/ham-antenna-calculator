@@ -1,0 +1,23 @@
+{
+  "name": "ham-antenna-calculator",
+  "version": "1.1.0",
+  "description": "Dependency-free ham radio antenna dimension calculator with idealized RF radiation patterns.",
+  "private": true,
+  "author": "N7SIX",
+  "license": "MIT",
+  "homepage": "https://n7six.github.io/ham-antenna-calculator/",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/N7SIX/ham-antenna-calculator.git"
+  },
+  "keywords": ["antenna", "ham-radio", "amateur-radio", "dipole", "yagi", "quad", "radiation-pattern"],
+  "scripts": {
+    "test": "node tests/antennas.test.js && node tests/ui-dom.test.js",
+    "test:math": "node tests/antennas.test.js",
+    "test:ui": "node tests/ui-dom.test.js",
+    "syntax": "node --check antennas.js && node --check app.js && node --check tests/test-cases.js && node --check tests/ui-dom.test.js"
+  },
+  "engines": {
+    "node": ">=14"
+  }
+}

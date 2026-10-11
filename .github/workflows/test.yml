@@ -1,0 +1,26 @@
+name: Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  node-tests:
+    name: Math + headless UI tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Syntax check every script
+        run: npm run syntax
+
+      - name: Antenna math suite
+        run: npm run test:math
+
+      - name: Headless UI suite
+        run: npm run test:ui
