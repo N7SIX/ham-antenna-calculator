@@ -19,7 +19,7 @@
   --radius-sm: 6px;
   --radius-xs: 4px;
   --shadow: 0 4px 16px rgba(0, 0, 0, 0.22);
-  --content-max: 1500px;
+  --content-max: min(1800px, 96vw);
   --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
   --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 }
@@ -107,7 +107,7 @@ body {
 
 .layout {
   display: grid;
-  grid-template-columns: minmax(300px, 370px) minmax(0, 1fr);
+  grid-template-columns: minmax(320px, 440px) minmax(0, 1fr);
   gap: 1.5rem;
   align-items: start;
   margin-top: 1.5rem;
@@ -352,7 +352,7 @@ input[type="range"] {
   display: flex;
   justify-content: center;
 }
-.pat-cell-cart .pat-svg { max-width: 660px; }
+.pat-cell-cart .pat-svg { max-width: 860px; }
 
 @media (max-width: 760px) {
   .pat-plots { grid-template-columns: minmax(0, 1fr); }
@@ -554,7 +554,14 @@ input[type="range"] {
 .pattern-height { margin-top: 0.85rem; }
 .pattern-height input[type="range"] { width: 100%; accent-color: var(--accent); }
 
-.rows { display: grid; gap: 0.5rem; }
+.rows {
+  display: grid;
+  gap: 0.5rem;
+  /* Fill the panel width: cards flow into as many columns as fit, instead of
+     one stretched column with a wide empty middle. min(360px,100%) keeps the
+     single-column layout from overflowing on narrow phones. */
+  grid-template-columns: repeat(auto-fit, minmax(min(360px, 100%), 1fr));
+}
 
 .row {
   display: grid;
