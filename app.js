@@ -80,7 +80,7 @@
 
   /* Version of the dimension + pattern model. Bump this whenever a formula or
    * a pattern factor changes, so a result can be reproduced later. */
-  var MODEL_VERSION = '7.6.2';
+  var MODEL_VERSION = '7.6.3';
 
   /* Shown wherever the pattern model is described, so nobody mistakes an
    * analytic sketch for a measured or NEC-simulated pattern. */
@@ -207,23 +207,55 @@
   }
 
   function svgDot(x, y) {
-    return '<circle cx="' + x + '" cy="' + y + '" r="4.5" class="d-fill"/>';
+    // Solder-joint node: filled core with a soft halo so feed points read clearly.
+    return '<circle cx="' + x + '" cy="' + y + '" r="5.8" class="d-node-halo"/>' +
+      '<circle cx="' + x + '" cy="' + y + '" r="3.1" class="d-node"/>';
   }
 
-  /** Dashed horizontal dimension line with end ticks and a centred label. */
+  /** Filled arrowhead at (x,y) pointing dir ('l','r','u','d') — dimension terminator. */
+  function svgArrow(x, y, dir) {
+    var s = 6.5, w = 2.7, pts;
+    if (dir === 'l' || dir === 'r') {
+      var dx = dir === 'l' ? -1 : 1;
+      pts = x + ',' + y + ' ' + (x - dx * s) + ',' + (y - w) + ' ' + (x - dx * s) + ',' + (y + w);
+    } else {
+      var dy = dir === 'u' ? -1 : 1;
+      pts = x + ',' + y + ' ' + (x - w) + ',' + (y - dy * s) + ' ' + (x + w) + ',' + (y - dy * s);
+    }
+    return '<polygon points="' + pts + '" class="d-arrow"/>';
+  }
+
+  /** Dashed horizontal dimension line with inward arrowheads and a centred label. */
   function dimH(x1, x2, y, label) {
-    return svgLine(x1, y, x2, y, 'd-stroke-alt d-dash', 1.5) +
-      svgLine(x1, y - 5, x1, y + 5, 'd-stroke-alt', 1.5) +
-      svgLine(x2, y - 5, x2, y + 5, 'd-stroke-alt', 1.5) +
+    return svgLine(x1, y, x2, y, 'd-stroke-alt d-dash', 1.2) +
+      svgArrow(x1, y, 'r') + svgArrow(x2, y, 'l') +
       svgText((x1 + x2) / 2, y - 7, label, 'd-strong', 'middle', 13);
   }
 
-  /** Dashed vertical dimension line with the label to its right. */
+  /** Dashed vertical dimension line with inward arrowheads and a right-hand label. */
   function dimV(x, y1, y2, label) {
-    return svgLine(x, y1, x, y2, 'd-stroke-alt d-dash', 1.5) +
-      svgLine(x - 5, y1, x + 5, y1, 'd-stroke-alt', 1.5) +
-      svgLine(x - 5, y2, x + 5, y2, 'd-stroke-alt', 1.5) +
-      svgText(x + 8, (y1 + y2) / 2 + 4, label, 'd-strong', 'start', 13);
+    return svgLine(x, y1, x, y2, 'd-stroke-alt d-dash', 1.2) +
+      svgArrow(x, y1, 'd') + svgArrow(x, y2, 'u') +
+      svgText(x + 9, (y1 + y2) / 2 + 4, label, 'd-strong', 'start', 13);
+  }
+
+  /** Chain-thin centre line marking an axis of symmetry (drafting convention). */
+  function svgCenter(x1, y1, x2, y2) {
+    return svgLine(x1, y1, x2, y2, 'd-center', 1);
+  }
+
+  /** Drafting leader: dot at the feature, a run to a shelf, then a label. */
+  function leader(x, y, x2, label, anchor) {
+    return '<circle cx="' + x + '" cy="' + y + '" r="2.3" class="d-leader-dot"/>' +
+      svgLine(x, y, x2, y, 'd-leader', 0.9) +
+      svgText(x2 + (anchor === 'end' ? -4 : 4), y + 3.5, label, 'd-note', anchor || 'start', 11);
+  }
+
+  /** Hatched earth/ground band (engineering ground symbol). */
+  function hatch(x1, x2, y) {
+    var s = svgLine(x1, y, x2, y, 'd-hatch', 1.4), i;
+    for (i = x1; i <= x2; i += 9) s += svgLine(i, y, i - 5, y + 6, 'd-hatch', 1.1);
+    return s;
   }
 
   function svgCircle(cx, cy, r, cls, sw) {
@@ -259,6 +291,7 @@
       legCaption = 'each half of the span';
     }
     var inner =
+      svgCenter(cx, y - 16, cx, y + 72) +
       svgText(320, 18, 'total length (tip to tip)', 'd-text', 'middle', 12) +
       dimH(x1, x2, 38, total) +
       svgLine(x1, y, cx - 9, y, 'd-stroke', 3) +
@@ -281,6 +314,7 @@
     var half = (spanFt / 2) * k, dropPx = dropFt * k;
     var ex1 = apexX - half, ex2 = apexX + half, ey = apexY + dropPx;
     var inner =
+      svgCenter(apexX, apexY - 14, apexX, ey + 6) +
       svgLine(apexX, apexY, ex1, ey, 'd-stroke', 3) +
       svgLine(apexX, apexY, ex2, ey, 'd-stroke', 3) +
       svgDot(apexX, apexY) +
@@ -304,6 +338,7 @@
     var radiatorPx = Math.min(176, 70 * ratio);
     var topY = baseY - radiatorPx;
     var inner =
+      svgCenter(baseX, topY - 12, baseX, 244) +
       svgLine(baseX, topY, baseX, baseY, 'd-stroke', 4) +
       svgDot(baseX, baseY) +
       svgLine(baseX, baseY, baseX - 57, baseY + 40, 'd-stroke-alt', 2.5) +
@@ -313,8 +348,8 @@
       dimV(238, topY, baseY, main(res, 'Radiator', units)) +
       svgText(baseX - 66, baseY + 60, main(res, 'Each radial', units), 'd-strong', 'middle', 12) +
       svgText(baseX - 66, baseY + 76, 'each radial', 'd-text', 'middle', 12) +
-      svgLine(70, 250, 570, 250, 'd-faint d-dash', 1.5) +
-      svgText(574, 254, 'ground', 'd-text', 'start', 11) +
+      hatch(70, 570, 250) +
+      leader(560, 250, 566, 'ground', 'start') +
       svgText(baseX + 12, baseY + 24, 'feed', 'd-text', 'start', 12);
     return svgWrap(inner, 270);
   }
@@ -360,7 +395,7 @@
     inner += svgDot(cx + els[1].pos * kx, cy) +
       svgLine(cx + els[1].pos * kx, cy, cx + els[1].pos * kx, cy + 62, 'd-stroke-alt', 2) +
       svgText(cx + els[1].pos * kx + 7, cy + 60, 'feed', 'd-text', 'start', 11) +
-      svgLine(cx, cy, cx + boomFt * kx, cy, 'd-faint d-dash', 1.2) +
+      svgCenter(cx - 10, cy, cx + boomFt * kx + 10, cy) +
       dimH(cx, cx + boomFt * kx, 206, main(res, 'Boom length', units)) +
       svgText(320, 226, 'boom: reflector → last director', 'd-text', 'middle', 12);
     return svgWrap(inner, 240);
@@ -369,6 +404,8 @@
   function diagramLoop(res, units) {
     var x1 = 215, x2 = 425, y1 = 34, y2 = 244;
     var inner =
+      svgCenter(320, y1 - 12, 320, y2 + 8) +
+      svgCenter(x1 - 12, (y1 + y2) / 2, x2 + 12, (y1 + y2) / 2) +
       svgRect(x1, y1, x2 - x1, y2 - y1, 'd-stroke', 3) +
       svgLine(x1, y1, x2, y2, 'd-stroke-alt d-dash', 1.2) +
       svgLine(x1, y2, x2, y1, 'd-stroke-alt d-dash', 1.2) +
@@ -405,7 +442,7 @@
           svgDot(cxm, y + side);
       }
     }
-    inner += svgLine(centers[0], y + side / 2, centers[n - 1], y + side / 2, 'd-faint d-dash', 1.2);
+    inner += svgCenter(centers[0] - 12, y + side / 2, centers[n - 1] + 12, y + side / 2);
     inner += dimH(centers[0], centers[1], y + side + 30, main(res, 'Driven → reflector spacing', units)) +
       svgText((centers[0] + centers[1]) / 2, y + side + 48, 'loop spacing', 'd-text', 'middle', 12) +
       svgText(320, y + side + 76, 'driven loop side: ' + (main(res, 'Driven loop — side', units) || '') +
@@ -422,6 +459,7 @@
       svgLine(40, y, 64, y, 'd-stroke', 2.5) +
       svgText(36, y - 10, 'to rig', 'd-text', 'end', 11) +
       svgLine(x, y, 580, y, 'd-stroke', 3) +
+      svgDot(x, y) +
       svgLine(580, y - 7, 580, y + 7, 'd-stroke', 2) +
       dimH(x, 580, 40, main(res, 'Radiator', units)) +
       svgText(346, 24, 'radiator', 'd-text', 'middle', 12) +
@@ -436,6 +474,7 @@
     var radiatorPx = 168, topY = baseY - radiatorPx;
     var f2 = typeof res.f2 === 'number' && isFinite(res.f2) ? res.f2 : 433.5;
     var inner =
+      svgCenter(baseX, topY - 12, baseX, 244) +
       svgLine(baseX, topY, baseX, baseY, 'd-stroke', 4) +
       svgText(baseX + 10, topY + 30, '¼ λ @ 2 m', 'd-text', 'start', 11) +
       svgText(baseX + 10, topY + 46, '¾ λ @ 70 cm', 'd-text', 'start', 11) +
@@ -449,8 +488,8 @@
       svgText(baseX - 84, baseY + 58, main(res, '2 m radials', units), 'd-text', 'middle', 11) +
       svgText(baseX + 84, baseY + 62, main(res, '70 cm radials', units), 'd-text', 'middle', 11) +
       svgText(baseX, baseY + 80, '4 × 2 m + 4 × 70 cm radials, one 50 Ω feed', 'd-strong', 'middle', 12) +
-      svgLine(70, 250, 570, 250, 'd-faint d-dash', 1.5) +
-      svgText(574, 254, 'ground', 'd-text', 'start', 11) +
+      hatch(70, 570, 250) +
+      leader(560, 250, 566, 'ground', 'start') +
       svgText(baseX + 12, baseY + 24, 'feed', 'd-text', 'start', 12);
     return svgWrap(inner, 270);
   }

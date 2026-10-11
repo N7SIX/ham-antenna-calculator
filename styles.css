@@ -264,24 +264,24 @@ input[type="range"] {
 
 .diagram {
   background:
-    linear-gradient(rgba(76,201,240,0.055) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(76,201,240,0.055) 1px, transparent 1px),
-    linear-gradient(rgba(76,201,240,0.028) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(76,201,240,0.028) 1px, transparent 1px),
+    linear-gradient(rgba(76,201,240,0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(76,201,240,0.06) 1px, transparent 1px),
+    linear-gradient(rgba(76,201,240,0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(76,201,240,0.03) 1px, transparent 1px),
     linear-gradient(180deg, #101c33 0%, var(--panel-2) 100%);
   background-size: 64px 64px, 64px 64px, 16px 16px, 16px 16px, auto;
   background-position: center top;
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
-  padding: 0.6rem;
+  padding: 0.65rem 0.7rem 1.85rem;
   margin-bottom: 1rem;
   overflow: hidden;
-  box-shadow: inset 0 1px 0 rgba(255,255,255,0.05), inset 0 0 0 4px rgba(0,0,0,0.12), var(--shadow);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.05), inset 0 0 0 4px rgba(0,0,0,0.14), var(--shadow);
   position: relative;
 }
 
 .diagram::before {
-  content: "SCHEMATIC · NOT TO SCALE";
+  content: "SCHEMATIC · N.T.S.";
   position: absolute;
   top: 0.55rem;
   right: 0.9rem;
@@ -290,7 +290,25 @@ input[type="range"] {
   font-weight: 700;
   letter-spacing: 0.16em;
   color: var(--muted);
-  opacity: 0.75;
+  opacity: 0.8;
+  pointer-events: none;
+}
+
+/* Drafting title-block strip along the bottom edge. */
+.diagram::after {
+  content: "DWG · ANTENNA LAYOUT · UNITS FT / M · SHEET 1 / 1";
+  position: absolute;
+  left: 0.9rem;
+  right: 0.9rem;
+  bottom: 0.5rem;
+  font-family: var(--mono);
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  color: var(--muted);
+  opacity: 0.72;
+  border-top: 1px solid var(--line-soft);
+  padding-top: 0.4rem;
   pointer-events: none;
 }
 
@@ -302,7 +320,7 @@ input[type="range"] {
     radial-gradient(120% 100% at 50% 0%, rgba(76,201,240,0.07), transparent 60%);
   border: 1px solid var(--line-soft);
   border-radius: var(--radius-xs);
-  box-shadow: inset 0 0 24px rgba(0,0,0,0.35);
+  box-shadow: inset 0 0 26px rgba(0,0,0,0.4);
 }
 
 .diagram .d-stroke { stroke: var(--accent); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; filter: drop-shadow(0 0 5px rgba(255,183,3,0.30)); }
@@ -313,6 +331,16 @@ input[type="range"] {
 .diagram .d-dash { stroke-dasharray: 5 4; }
 .diagram .d-faint { stroke: var(--line); }
 .diagram .d-dim { stroke: var(--muted); stroke-width: 0.8; opacity: 0.85; }
+
+/* Grade-lab drafting toolkit */
+.diagram .d-arrow { fill: var(--accent-2); stroke: none; }
+.diagram .d-center { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 15 4 3 4; opacity: 0.6; }
+.diagram .d-leader { stroke: var(--accent-2); stroke-width: 0.9; opacity: 0.85; }
+.diagram .d-leader-dot { fill: var(--accent-2); }
+.diagram .d-node { fill: var(--accent); stroke: var(--panel-2); stroke-width: 1.3; }
+.diagram .d-node-halo { fill: var(--accent); opacity: 0.2; }
+.diagram .d-note { fill: var(--muted); font-family: var(--mono); font-size: 11px; letter-spacing: 0.05em; }
+.diagram .d-hatch { stroke: var(--accent-2); stroke-linecap: round; opacity: 0.9; }
 @media (prefers-color-scheme: light) {
   .diagram {
     background:
@@ -325,6 +353,7 @@ input[type="range"] {
   }
   .diagram svg { background: transparent; }
   .diagram .d-strong { stroke: #ffffff; }
+  .diagram .d-center { stroke: var(--muted); opacity: 0.7; }
 }
 
 .pattern-wrap { margin-top: 0.85rem; }
