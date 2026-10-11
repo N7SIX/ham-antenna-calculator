@@ -80,7 +80,7 @@
 
   /* Version of the dimension + pattern model. Bump this whenever a formula or
    * a pattern factor changes, so a result can be reproduced later. */
-  var MODEL_VERSION = '7.6.1';
+  var MODEL_VERSION = '7.6.2';
 
   /* Shown wherever the pattern model is described, so nobody mistakes an
    * analytic sketch for a measured or NEC-simulated pattern. */
