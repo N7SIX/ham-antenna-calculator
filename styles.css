@@ -19,6 +19,7 @@
   --radius-sm: 6px;
   --radius-xs: 4px;
   --shadow: 0 4px 16px rgba(0, 0, 0, 0.22);
+  --content-max: 1500px;
   --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
   --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 }
@@ -61,9 +62,9 @@ body {
 .app-header,
 .layout,
 .app-footer {
-  max-width: 1180px;
+  max-width: var(--content-max);
   margin: 0 auto;
-  padding: 0 1.25rem;
+  padding: 0 1.5rem;
 }
 
 .app-header { padding-top: 1.9rem; padding-bottom: 1.15rem; }
@@ -106,10 +107,10 @@ body {
 
 .layout {
   display: grid;
-  grid-template-columns: minmax(280px, 340px) minmax(0, 1fr);
-  gap: 1.25rem;
+  grid-template-columns: minmax(300px, 370px) minmax(0, 1fr);
+  gap: 1.5rem;
   align-items: start;
-  margin-top: 1.25rem;
+  margin-top: 1.5rem;
 }
 
 @media (max-width: 900px) {
@@ -337,13 +338,26 @@ input[type="range"] {
 
 .pat-plots {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
-  gap: 0.6rem;
-  padding: 0.75rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.8rem;
+  padding: 0.9rem;
 }
 
 .pat-cell { min-width: 0; }
-.pat-cell-cart { display: flex; align-items: center; }
+
+/* The cartesian is wide and short — give it its own full-width row but cap its
+   width so it stays a readable landscape strip instead of ballooning vertically. */
+.pat-cell-cart {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: center;
+}
+.pat-cell-cart .pat-svg { max-width: 660px; }
+
+@media (max-width: 760px) {
+  .pat-plots { grid-template-columns: minmax(0, 1fr); }
+  .pat-cell-cart .pat-svg { max-width: none; }
+}
 
 .pat-svg {
   display: block;
@@ -355,8 +369,6 @@ input[type="range"] {
   border: 1px solid var(--line);
   border-radius: var(--radius-xs);
 }
-
-.pat-cell-cart .pat-svg { margin: auto; }
 
 .p-plot-title { fill: var(--text); font-family: var(--sans); font-weight: 700; letter-spacing: 0.1em; }
 .p-axis-title { fill: var(--muted); font-family: var(--sans); }
@@ -528,9 +540,9 @@ input[type="range"] {
   flex-wrap: wrap;
   align-items: center;
   gap: 0.15rem 0.9rem;
-  max-width: 1180px;
+  max-width: var(--content-max);
   margin: 0 auto;
-  padding: 0.5rem 1.25rem;
+  padding: 0.5rem 1.5rem;
   font-family: var(--mono);
   font-size: 0.72rem;
   color: var(--muted);
