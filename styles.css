@@ -281,16 +281,9 @@ input[type="range"] {
 }
 
 .diagram::before {
-  content: "SCHEMATIC · N.T.S.";
+  content: "";
   position: absolute;
-  top: 0.55rem;
-  right: 0.9rem;
-  font-family: var(--mono);
-  font-size: 0.6rem;
-  font-weight: 700;
-  letter-spacing: 0.16em;
-  color: var(--muted);
-  opacity: 0.8;
+  inset: 0;
   pointer-events: none;
 }
 
@@ -355,6 +348,48 @@ input[type="range"] {
   .diagram .d-strong { stroke: #ffffff; }
   .diagram .d-center { stroke: var(--muted); opacity: 0.7; }
 }
+
+/* ------------------------------------------------------------------ *
+ * Controlled-drawing sheet chrome (frame, zones, title block, BOM,
+ * notes, balloons). Sits inside .diagram so the sheet gets the same
+ * engraved surface; every class has a light-mode override below.
+ * ------------------------------------------------------------------ */
+
+.diagram .drw-svg { font-family: var(--mono); }
+.diagram .drw-frame { fill: none; stroke: var(--muted); stroke-width: 1; opacity: 0.55; }
+.diagram .drw-frame-in { fill: none; stroke: var(--accent-2); stroke-width: 1.6; opacity: 0.85; }
+.diagram .drw-zone { fill: var(--muted); font-family: var(--mono); font-size: 10px; letter-spacing: 0.08em; opacity: 0.8; }
+.diagram .drw-zone-tick { stroke: var(--muted); stroke-width: 1; opacity: 0.6; }
+.diagram .drw-block { fill: rgba(11, 20, 38, 0.55); stroke: var(--accent-2); stroke-width: 1.1; }
+.diagram .drw-hair { stroke: var(--line); stroke-width: 1; }
+.diagram .drw-cell-lbl { fill: var(--muted); font-family: var(--mono); font-size: 8px; letter-spacing: 0.12em; }
+.diagram .drw-mono { fill: var(--text); font-family: var(--mono); font-size: 10px; letter-spacing: 0.04em; }
+.diagram .drw-strong { fill: var(--text); font-family: var(--mono); font-weight: 700; font-size: 12px; letter-spacing: 0.02em; }
+.diagram .drw-note { fill: var(--muted); font-family: var(--mono); font-size: 9px; letter-spacing: 0.04em; }
+.diagram .drw-proj { fill: none; stroke: var(--accent-2); stroke-width: 1.1; }
+.diagram .drw-scale-a { fill: var(--accent-2); opacity: 0.85; }
+.diagram .drw-scale-b { fill: none; stroke: var(--accent-2); stroke-width: 0.8; }
+.diagram .drw-balloon-lead { stroke: var(--accent-2); stroke-width: 0.8; }
+.diagram .drw-balloon { fill: var(--panel-2); stroke: var(--accent); stroke-width: 1.2; }
+.diagram .drw-balloon-t { fill: var(--accent); font-family: var(--mono); font-weight: 700; font-size: 9px; }
+
+@media (prefers-color-scheme: light) {
+  .diagram .drw-block { fill: rgba(11, 111, 150, 0.06); stroke: #0b6f96; }
+  .diagram .drw-frame-in { stroke: #0b6f96; }
+  .diagram .drw-frame { stroke: #6b7a90; }
+  .diagram .drw-zone { fill: #5a6b80; }
+  .diagram .drw-zone-tick { stroke: #6b7a90; }
+  .diagram .drw-hair { stroke: rgba(11, 111, 150, 0.35); }
+  .diagram .drw-cell-lbl { fill: #4a5a6e; }
+  .diagram .drw-note { fill: #33445a; }
+  .diagram .drw-proj { stroke: #0b6f96; }
+  .diagram .drw-scale-a { fill: #0b6f96; }
+  .diagram .drw-scale-b { stroke: #0b6f96; }
+  .diagram .drw-balloon { fill: #ffffff; stroke: #b06f00; }
+  .diagram .drw-balloon-t { fill: #8a5600; }
+  .diagram .drw-balloon-lead { stroke: #0b6f96; }
+}
+
 
 .pattern-wrap { margin-top: 0.85rem; }
 .pattern-title {

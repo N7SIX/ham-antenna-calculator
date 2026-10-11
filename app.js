@@ -80,7 +80,7 @@
 
   /* Version of the dimension + pattern model. Bump this whenever a formula or
    * a pattern factor changes, so a result can be reproduced later. */
-  var MODEL_VERSION = '7.6.3';
+  var MODEL_VERSION = '7.6.4';
 
   /* Shown wherever the pattern model is described, so nobody mistakes an
    * analytic sketch for a measured or NEC-simulated pattern. */
@@ -194,6 +194,247 @@
   function svgWrap(inner, h) {
     return '<svg viewBox="0 0 640 ' + (h || 220) + '" preserveAspectRatio="xMidYMid meet" role="img">' + inner + '</svg>';
   }
+  /* ------------------------------------------------------------------ *
+   * Controlled-drawing sheet (ISO/ASME-style): frame + zone grid, title
+   * block, revision table, bill of materials, notes + tolerance block,
+   * balloon callouts. The antenna geometry is drawn unchanged inside a
+   * translated <g>, exactly like a view on a real drawing sheet.
+   * ------------------------------------------------------------------ */
+
+  var DRW_W = 920, DRW_PAD = 34;
+  var DRW_FX0 = DRW_PAD, DRW_FX1 = DRW_W - DRW_PAD;   // frame left / right
+  var DRW_TOP = DRW_PAD;                               // frame top
+  var DRW_RCX0 = 710;                                  // right column (rev / tol)
+  var DRW_SX = 52, DRW_SY = 52;                        // antenna view origin
+  var DRW_BS = 150;                                    // bottom strip height
+  var DRW_DATE = '2026-10-11';
+
+  var DRW_DWG = {
+    dipole: 'DIP-01', foldedDipole: 'FDP-01', efhw: 'EFH-01', invertedV: 'IV-01',
+    quarterWaveVertical: 'QWV-01', halfWaveVertical: 'HWV-01', fiveEighthVertical: 'F8V-01',
+    dualBandVertical: 'DBV-01', yagi: 'YAG-01', fullWaveLoop: 'FWL-01', cubicalQuad: 'CQD-01'
+  };
+
+  function drwDwgNo(id) { return 'HAC-' + (DRW_DWG[id] || 'GEN-01'); }
+
+  /** Trim a drawing title so it fits the title-block cell. */
+  function drwTitle(t) {
+    t = String(t || 'ANTENNA');
+    return t.length > 30 ? t.slice(0, 29) + '…' : t;
+  }
+
+  function drwBomDesc(r) {
+    var d = String(r[2]);
+    if (r[3] && r[3] !== '—') d += ' — ' + r[3];
+    return d;
+  }
+
+  /** Outer trim + inner frame + zone grid (letters across, numbers down). */
+  function drwFrame(sheetH) {
+    var s = '', i, x, y, fy1 = sheetH - DRW_PAD;
+    var colW = (DRW_FX1 - DRW_FX0) / 4, rowH = (fy1 - DRW_TOP) / 4;
+    var letters = ['A', 'B', 'C', 'D'];
+    s += '<rect x="6" y="6" width="' + (DRW_W - 12) + '" height="' + (sheetH - 12) + '" class="drw-frame"/>';
+    s += '<rect x="' + DRW_FX0 + '" y="' + DRW_TOP + '" width="' + (DRW_FX1 - DRW_FX0) +
+      '" height="' + (fy1 - DRW_TOP) + '" class="drw-frame-in"/>';
+    for (i = 0; i < 4; i++) {
+      x = DRW_FX0 + colW * (i + 0.5);
+      s += svgText(x, 21, letters[i], 'drw-zone', 'middle', 10);
+      s += svgText(x, sheetH - 10, letters[i], 'drw-zone', 'middle', 10);
+      y = DRW_TOP + rowH * (i + 0.5);
+      s += svgText(17, y + 3, String(4 - i), 'drw-zone', 'middle', 10);
+      s += svgText(DRW_W - 17, y + 3, String(4 - i), 'drw-zone', 'middle', 10);
+      if (i < 3) {
+        var tx = DRW_FX0 + colW * (i + 1), ty = DRW_TOP + rowH * (i + 1);
+        s += svgLine(tx, DRW_TOP, tx, DRW_TOP + 6, 'drw-zone-tick', 1) +
+          svgLine(tx, fy1, tx, fy1 - 6, 'drw-zone-tick', 1) +
+          svgLine(DRW_FX0, ty, DRW_FX0 + 6, ty, 'drw-zone-tick', 1) +
+          svgLine(DRW_FX1, ty, DRW_FX1 - 6, ty, 'drw-zone-tick', 1);
+      }
+    }
+    return s;
+  }
+
+  /** Third-angle projection symbol: frustum (side) + concentric circles (end). */
+  function drwProjSymbol(cx, cy) {
+    return '<polygon points="' + (cx - 24) + ',' + (cy - 5) + ' ' + (cx - 8) + ',' + (cy - 9) +
+      ' ' + (cx - 8) + ',' + (cy + 9) + ' ' + (cx - 24) + ',' + (cy + 5) + '" class="drw-proj"/>' +
+      svgCircle(cx + 6, cy, 9, 'drw-proj', 1) + svgCircle(cx + 6, cy, 4, 'drw-proj', 1);
+  }
+
+  /** Nominal graphic scale bar (segments of 1 ft). Drawing itself is NTS. */
+  function drwScaleBar(x, y) {
+    var s = svgText(x, y - 6, 'GRAPHIC SCALE — NOMINAL', 'drw-cell-lbl', 'start', 8), i;
+    for (i = 0; i < 4; i++) {
+      s += '<rect x="' + (x + i * 36) + '" y="' + y + '" width="36" height="7" class="' +
+        (i % 2 ? 'drw-scale-b' : 'drw-scale-a') + '"/>';
+      s += svgText(x + i * 36, y + 18, String(i), 'drw-cell-lbl', 'middle', 7);
+    }
+    s += svgText(x + 4 * 36, y + 18, '4 ft', 'drw-cell-lbl', 'middle', 7);
+    return s;
+  }
+
+  /** Bottom-right title block. */
+  function drwTitleBlock(id, res, x0, y0, w, h) {
+    var x1 = x0 + w, s = '';
+    var rTitle = y0 + 44, rDwg = y0 + 74, rMeta = y0 + 102;
+    s += '<rect x="' + x0 + '" y="' + y0 + '" width="' + w + '" height="' + h + '" class="drw-block"/>';
+    s += svgText(x0 + 8, y0 + 14, 'TITLE', 'drw-cell-lbl', 'start', 8);
+    s += svgText(x0 + 8, y0 + 34, drwTitle(res.title), 'drw-strong', 'start', 12);
+    s += svgLine(x0, rTitle, x1, rTitle, 'drw-hair', 1);
+    s += svgText(x0 + 8, rTitle + 13, 'DWG NO', 'drw-cell-lbl', 'start', 7);
+    s += svgText(x0 + 8, rTitle + 26, drwDwgNo(id), 'drw-mono', 'start', 10);
+    s += svgText(x0 + 104, rTitle + 13, 'REV', 'drw-cell-lbl', 'start', 7);
+    s += svgText(x0 + 104, rTitle + 26, 'A', 'drw-mono', 'start', 10);
+    s += svgLine(x0, rDwg, x1, rDwg, 'drw-hair', 1);
+    s += svgText(x0 + 8, rDwg + 12, 'SCALE  NTS', 'drw-cell-lbl', 'start', 8);
+    s += svgText(x0 + 96, rDwg + 12, 'UNITS  FT/IN (m)', 'drw-cell-lbl', 'start', 8);
+    s += svgText(x0 + 8, rMeta + 12, 'SHEET  1 OF 1', 'drw-cell-lbl', 'start', 8);
+    s += svgLine(x0, rMeta, x1, rMeta, 'drw-hair', 1);
+    s += svgText(x0 + 8, rMeta + 24, 'DRAWN  HAC', 'drw-cell-lbl', 'start', 8);
+    s += svgText(x0 + 8, rMeta + 40, 'DATE  ' + DRW_DATE, 'drw-cell-lbl', 'start', 8);
+    s += drwProjSymbol(x0 + w - 34, y0 + h - 26);
+    s += svgText(x0 + w - 34, y0 + h - 8, 'THIRD ANGLE', 'drw-cell-lbl', 'middle', 7);
+    return s;
+  }
+
+  /** Top-right revision table. */
+  function drwRevTable(x0, y0, w) {
+    var s = '<rect x="' + x0 + '" y="' + y0 + '" width="' + w + '" height="54" class="drw-block"/>';
+    s += svgText(x0 + 8, y0 + 13, 'REVISIONS', 'drw-cell-lbl', 'start', 8);
+    s += svgLine(x0, y0 + 20, x0 + w, y0 + 20, 'drw-hair', 1);
+    s += svgText(x0 + 8, y0 + 33, 'A', 'drw-mono', 'start', 9);
+    s += svgText(x0 + 22, y0 + 33, 'INITIAL RELEASE', 'drw-cell-lbl', 'start', 8);
+    s += svgText(x0 + 8, y0 + 47, DRW_DATE + '  —  HAC', 'drw-cell-lbl', 'start', 8);
+    return s;
+  }
+
+  var BOM = {
+    dipole: [[1, 1, 'Radiator wire', '14 AWG copperweld'], [2, 2, 'End insulator', 'Ceramic / PVC'],
+      [3, 1, 'Centre insulator + feed', 'Acrylic'], [4, 1, 'Coax feed + PL-259', 'RG-8X 50 Ω']],
+    foldedDipole: [[1, 1, 'Folded dipole wire', '300 Ω ladder'], [2, 2, 'End insulator', 'Ceramic / PVC'],
+      [3, 1, '4:1 balun', 'Toroid'], [4, 1, 'Coax feed + PL-259', 'RG-8X 50 Ω']],
+    invertedV: [[1, 2, 'Leg wire', '14 AWG copperweld'], [2, 1, 'Apex insulator + mast tie', 'Acrylic'],
+      [3, 2, 'End insulator', 'Ceramic / PVC'], [4, 1, 'Coax feed + PL-259', 'RG-8X 50 Ω']],
+    efhw: [[1, 1, 'End-fed radiator wire', '14 AWG copperweld'], [2, 1, '49:1 unun', 'FT-140-43'],
+      [3, 1, 'Counterpoise wire', '14 AWG'], [4, 1, 'Coax feed + PL-259', 'RG-8X 50 Ω']],
+    quarterWaveVertical: [[1, 1, 'Radiator tube / whip', 'Aluminium'], [2, 4, 'Ground radial', '14 AWG'],
+      [3, 1, 'Base mount + hardware', 'Stainless'], [4, 1, 'Coax feed + PL-259', 'RG-8X 50 Ω']],
+    halfWaveVertical: [[1, 1, 'Radiator tube / whip', 'Aluminium'], [2, 4, 'Ground radial', '14 AWG'],
+      [3, 1, 'Base mount + hardware', 'Stainless'], [4, 1, 'Coax feed + PL-259', 'RG-8X 50 Ω']],
+    fiveEighthVertical: [[1, 1, 'Radiator tube / whip', 'Aluminium'], [2, 1, 'Base loading coil', 'Enamelled Cu'],
+      [3, 4, 'Ground radial', '14 AWG'], [4, 1, 'Coax feed + PL-259', 'RG-8X 50 Ω']],
+    dualBandVertical: [[1, 1, 'Shared whip', 'Aluminium'], [2, 4, '2 m radial', '14 AWG'],
+      [3, 4, '70 cm radial', '14 AWG'], [4, 1, 'Coax feed + PL-259', 'RG-8X 50 Ω']],
+    yagi: [[1, 1, 'Driven element', '6061 alum tube'], [2, 1, 'Reflector', '6061 alum tube'],
+      [3, 'n', 'Director(s)', '6061 alum tube'], [4, 1, 'Boom', '6061 alum tube'],
+      [5, 1, 'Coax feed + PL-259', 'RG-8X 50 Ω']],
+    fullWaveLoop: [[1, 1, 'Loop wire', '14 AWG copperweld'], [2, 1, 'Feed / support rope', 'Dacron'],
+      [3, 1, 'Coax feed + PL-259', 'RG-8X 50 Ω']],
+    cubicalQuad: [[1, 1, 'Driven loop', '14 AWG copperweld'], [2, 1, 'Reflector loop', '14 AWG copperweld'],
+      [3, 'n', 'Director loop(s)', '14 AWG copperweld'], [4, 1, 'Spreader arms', 'Fibreglass'],
+      [5, 1, 'Boom + feed', 'Aluminium']]
+  };
+
+  function bomRows(id, res) {
+    var list = BOM[id] || BOM.dipole, out = [], i, r;
+    for (i = 0; i < list.length; i++) {
+      r = list[i].slice();
+      if (r[1] === 'n') {
+        var n = 0, j, rw;
+        for (j = 0; j < res.rows.length; j++) {
+          rw = res.rows[j];
+          if (/^Director( loop)? \d+\b/.test(rw.label)) n++;
+        }
+        r[1] = Math.max(1, n);
+      }
+      out.push(r);
+    }
+    return out;
+  }
+
+  /** Bottom-left bill of materials. */
+  function drwBom(id, res, x0, y0, w, h) {
+    var rows = bomRows(id, res), s = '';
+    var colItem = x0 + 10, colQty = x0 + 52, colDesc = x0 + 92;
+    s += '<rect x="' + x0 + '" y="' + y0 + '" width="' + w + '" height="' + h + '" class="drw-block"/>';
+    s += svgText(x0 + 8, y0 + 14, 'BILL OF MATERIALS', 'drw-cell-lbl', 'start', 8);
+    s += svgText(colItem, y0 + 28, 'ITEM', 'drw-cell-lbl', 'start', 7) +
+      svgText(colQty, y0 + 28, 'QTY', 'drw-cell-lbl', 'start', 7) +
+      svgText(colDesc, y0 + 28, 'DESCRIPTION — MATERIAL', 'drw-cell-lbl', 'start', 7);
+    s += svgLine(x0, y0 + 33, x0 + w, y0 + 33, 'drw-hair', 1);
+    for (var i = 0; i < rows.length && i < 6; i++) {
+      var ry = y0 + 48 + i * 17;
+      s += svgText(colItem, ry, String(rows[i][0]), 'drw-mono', 'start', 9) +
+        svgText(colQty, ry, String(rows[i][1]), 'drw-mono', 'start', 9) +
+        svgText(colDesc, ry, drwBomDesc(rows[i]), 'drw-note', 'start', 9);
+    }
+    return s;
+  }
+
+  /** Right-column general notes + tolerance block. */
+  function drwNotes(x0, y0, w, h) {
+    var s = '<rect x="' + x0 + '" y="' + y0 + '" width="' + w + '" height="' + h + '" class="drw-block"/>';
+    s += svgText(x0 + 8, y0 + 14, 'GENERAL NOTES', 'drw-cell-lbl', 'start', 8);
+    s += svgLine(x0, y0 + 19, x0 + w, y0 + 19, 'drw-hair', 1);
+    var notes = [
+      '1. DIMENSIONS IN FT/IN (m).',
+      '2. DO NOT SCALE DRAWING.',
+      '3. CUT LONG, TRIM TO RESONANCE.',
+      '4. VERIFY WITH NEC MODEL.',
+      '5. TOL: LEN ±1/8 in (±3 mm).',
+      '6. TOL: ANGLE ±2°.',
+      '7. WIRE LEN ±0.5%.'
+    ];
+    for (var i = 0; i < notes.length; i++) s += svgText(x0 + 8, y0 + 32 + i * 13, notes[i], 'drw-note', 'start', 9);
+    var ty = y0 + 32 + notes.length * 13 + 6;
+    s += drwScaleBar(x0 + 10, ty + 14);
+    return s;
+  }
+
+  /** Balloon: leader from a feature to a circled item number (geometry coords). */
+  function balloon(ax, ay, item, bx, by) {
+    return svgLine(ax, ay, bx, by, 'drw-balloon-lead', 0.8) +
+      '<circle cx="' + bx + '" cy="' + by + '" r="8" class="drw-balloon"/>' +
+      svgText(bx, by + 3.2, String(item), 'drw-balloon-t', 'middle', 9);
+  }
+
+  var BALLOONS = {
+    dipole: [[320, 84, 3, 268, 40], [120, 84, 1, 96, 130]],
+    foldedDipole: [[320, 84, 3, 268, 40], [120, 84, 1, 96, 130]],
+    invertedV: [[320, 46, 2, 300, 22], [214, 150, 1, 150, 196]],
+    efhw: [[112, 92, 2, 112, 40], [350, 92, 1, 380, 150]],
+    quarterWaveVertical: [[320, 196, 3, 250, 214], [320, 120, 1, 210, 120]],
+    halfWaveVertical: [[320, 196, 3, 250, 214], [320, 120, 1, 210, 120]],
+    fiveEighthVertical: [[320, 196, 3, 250, 214], [320, 120, 1, 210, 120]],
+    dualBandVertical: [[320, 190, 4, 250, 208], [320, 120, 1, 210, 120]],
+    yagi: [[110, 100, 1, 92, 40], [210, 100, 5, 210, 168]],
+    fullWaveLoop: [[320, 244, 3, 300, 276], [215, 140, 1, 140, 140]],
+    cubicalQuad: [[160, 100, 2, 132, 22], [250, 156, 5, 250, 200]]
+  };
+
+  /** Compose the full controlled-drawing sheet around the antenna geometry. */
+  function drawingWrap(inner, h, id, res) {
+    var sheetH = 264 + h;
+    var stripY = 66 + h;                       // bottom strip top
+    var revX = DRW_RCX0, revW = DRW_FX1 - DRW_RCX0;
+    var bomX = DRW_FX0, bomW = DRW_RCX0 - DRW_FX0 - 12;   // BOM (bottom-left)
+    var s = '<svg class="drw-svg" viewBox="0 0 ' + DRW_W + ' ' + sheetH +
+      '" preserveAspectRatio="xMidYMid meet" role="img" aria-label="' +
+      escapeHtml(drwTitle(res.title)) + ' schematic drawing">';
+    s += drwFrame(sheetH);
+    s += '<g transform="translate(' + DRW_SX + ',' + DRW_SY + ')">' + inner;
+    var bl = BALLOONS[id];
+    if (bl) for (var i = 0; i < bl.length; i++) s += balloon(bl[i][0], bl[i][1], bl[i][2], bl[i][3], bl[i][4]);
+    s += '</g>';
+    s += drwRevTable(revX, DRW_TOP + 6, revW);
+    s += drwNotes(revX, DRW_TOP + 66, revW, stripY - DRW_TOP - 72);
+    s += drwBom(id, res, bomX, stripY, bomW, DRW_BS);
+    s += drwTitleBlock(id, res, revX, stripY, revW, DRW_BS);
+    s += '</svg>';
+    return s;
+  }
+
 
   function svgLine(x1, y1, x2, y2, cls, w) {
     return '<line x1="' + x1 + '" y1="' + y1 + '" x2="' + x2 + '" y2="' + y2 +
@@ -303,7 +544,7 @@
       svgText(cx + 8, y + 60, 'feed', 'd-text', 'start', 12) +
       dimH(cx, x2, 150, leg || '') +
       svgText(450, 168, legCaption, 'd-text', 'middle', 12);
-    return svgWrap(inner);
+    return drawingWrap(inner, 220, res.id, res);
   }
 
   function diagramInvertedV(res, units) {
@@ -326,7 +567,7 @@
       svgText(ex2, ey + 60, 'between end insulators', 'd-text', 'end', 12) +
       svgText(apexX + 26, apexY + 30, main(res, 'Apex angle', units) || '90°', 'd-text', 'start', 12) +
       svgText(apexX, ey + 90, 'each leg: ' + (main(res, 'Each leg', units) || ''), 'd-strong', 'middle', 13);
-    return svgWrap(inner, 240);
+    return drawingWrap(inner, 240, res.id, res);
   }
 
   /** Vertical radiator plus radial field. */
@@ -351,7 +592,7 @@
       hatch(70, 570, 250) +
       leader(560, 250, 566, 'ground', 'start') +
       svgText(baseX + 12, baseY + 24, 'feed', 'd-text', 'start', 12);
-    return svgWrap(inner, 270);
+    return drawingWrap(inner, 270, res.id, res);
   }
 
   function diagramYagi(res, units) {
@@ -398,7 +639,7 @@
       svgCenter(cx - 10, cy, cx + boomFt * kx + 10, cy) +
       dimH(cx, cx + boomFt * kx, 206, main(res, 'Boom length', units)) +
       svgText(320, 226, 'boom: reflector → last director', 'd-text', 'middle', 12);
-    return svgWrap(inner, 240);
+    return drawingWrap(inner, 240, res.id, res);
   }
 
   function diagramLoop(res, units) {
@@ -416,7 +657,7 @@
       svgText(330, y2 + 24, 'feed', 'd-text', 'start', 11) +
       dimH(x1, x2, y2 + 42, main(res, 'Square loop — side length', units)) +
       svgText(x2, y2 + 60, 'side (square)', 'd-text', 'end', 12);
-    return svgWrap(inner, 300);
+    return drawingWrap(inner, 300, res.id, res);
   }
 
   function diagramQuad(res, units) {
@@ -447,7 +688,7 @@
       svgText((centers[0] + centers[1]) / 2, y + side + 48, 'loop spacing', 'd-text', 'middle', 12) +
       svgText(320, y + side + 76, 'driven loop side: ' + (main(res, 'Driven loop — side', units) || '') +
         '   •   perimeter: ' + (main(res, 'Driven loop — perimeter', units) || ''), 'd-strong', 'middle', 12);
-    return svgWrap(inner, 250);
+    return drawingWrap(inner, 250, res.id, res);
   }
 
   function diagramEfhw(res, units) {
@@ -466,7 +707,7 @@
       svgLine(88, y + 28, 168, y + 62, 'd-stroke-alt d-dash', 2) +
       svgText(174, y + 66, 'counterpoise: ' + (main(res, 'Counterpoise', units) || ''), 'd-text', 'start', 12) +
       svgText(360, y + 40, 'build long, trim the far end for lowest SWR', 'd-text', 'middle', 12);
-    return svgWrap(inner, 210);
+    return drawingWrap(inner, 210, res.id, res);
   }
 
   function diagramDualBand(res, units) {
@@ -491,7 +732,7 @@
       hatch(70, 570, 250) +
       leader(560, 250, 566, 'ground', 'start') +
       svgText(baseX + 12, baseY + 24, 'feed', 'd-text', 'start', 12);
-    return svgWrap(inner, 270);
+    return drawingWrap(inner, 270, res.id, res);
   }
 
   /* RF radiation pattern panel — instrument-style renderers.
