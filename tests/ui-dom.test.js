@@ -446,6 +446,12 @@ check('the CSV filename encodes the antenna and frequency',
   App.patternFileStem(App.lastPattern()));
 
 console.log('\n[instrument status bar + version stamp]');
+/* Layout regression guard: the status bar must NOT be a grid child of .layout,
+ * or CSS grid auto-placement pushes the results panel into the narrow column. */
+var indexSrc = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+check('the status bar sits outside the .layout grid',
+  indexSrc.indexOf('id="statusbar"') < indexSrc.indexOf('<main class="layout">'),
+  'statusbar must be defined before <main class="layout">');
 var sb = htmlText(ensure('statusbar').innerHTML);
 check('the status bar reports the frequency', /\bf\b/.test(sb) && /MHz/.test(sb), sb);
 check('the status bar reports wavelength', /λ/.test(sb), sb);

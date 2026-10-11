@@ -889,15 +889,26 @@
       'MMANA-GAL, EZNEC or 4nec2.';
     if (caption.indexOf(escapeHtml(pat.gainText)) === 0) caption = caption.slice(escapeHtml(pat.gainText).length + 2);
 
+    var klass = pat.directional ? 'directional beam' :
+      (pat.azimuth.omnidirectional ? 'omnidirectional' : 'bidirectional');
+
     return '<div class="pattern">' +
+      '<div class="pat-head">' +
+      '<span class="pat-head-title">Radiation pattern</span>' +
+      '<span class="pat-chip">' + escapeHtml(klass) + '</span>' +
+      '<span class="pat-chip pat-chip-ghost">idealized · perfect ground</span>' +
+      '<span class="pat-head-meta">' + escapeHtml(pat.polarization) + ' · 0 dB = peak</span>' +
+      '</div>' +
       '<div class="pat-plots">' +
       '<div class="pat-cell">' + rose + '</div>' +
       '<div class="pat-cell">' + elSvg + '</div>' +
+      '<div class="pat-cell pat-cell-cart">' + cart + '</div>' +
       '</div>' +
-      '<div class="pat-cart">' + cart + '</div>' +
       legend +
+      '<div class="pat-readout">' +
       '<h5 class="pat-sub">Pattern read-out</h5>' +
       patStatsGrid(pat) +
+      '</div>' +
       '<p class="hint pat-note">' + caption + '</p>' +
       patDataDetails(pat) +
       '</div>';

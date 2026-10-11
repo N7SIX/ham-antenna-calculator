@@ -15,9 +15,10 @@
   --accent-2: #4cc9f0;
   --good: #7bd88f;
   --warn: #ff9f68;
-  --radius: 14px;
-  --radius-sm: 9px;
-  --shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+  --radius: 10px;
+  --radius-sm: 6px;
+  --radius-xs: 4px;
+  --shadow: 0 4px 16px rgba(0, 0, 0, 0.22);
   --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
   --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 }
@@ -65,7 +66,7 @@ body {
   padding: 0 1.25rem;
 }
 
-.app-header { padding-top: 2.2rem; padding-bottom: 1.2rem; }
+.app-header { padding-top: 1.9rem; padding-bottom: 1.15rem; }
 
 .app-header h1 {
   margin: 0;
@@ -108,6 +109,7 @@ body {
   grid-template-columns: minmax(280px, 340px) minmax(0, 1fr);
   gap: 1.25rem;
   align-items: start;
+  margin-top: 1.25rem;
 }
 
 @media (max-width: 900px) {
@@ -123,12 +125,25 @@ body {
 }
 
 .panel h2 {
-  margin: 0 0 0.75rem;
-  font-size: 0.82rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0 0 0.9rem;
+  padding-bottom: 0.55rem;
+  font-size: 0.78rem;
   text-transform: uppercase;
-  letter-spacing: 0.12em;
-  color: var(--muted);
+  letter-spacing: 0.14em;
+  color: var(--text);
   font-weight: 700;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.h2-tick {
+  width: 3px;
+  height: 0.95em;
+  border-radius: 1px;
+  background: var(--accent);
+  flex-shrink: 0;
 }
 
 .field { margin-bottom: 1rem; }
@@ -272,18 +287,63 @@ input[type="range"] {
 
 .pattern {
   background: var(--panel-2);
-  border: 1px solid var(--line-soft);
+  border: 1px solid var(--line);
   border-radius: var(--radius-sm);
-  padding: 0.75rem;
+  overflow: hidden;
+}
+
+/* Card header bar — title, classification chips, and the fixed metadata. */
+.pat-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.55rem;
+  padding: 0.5rem 0.75rem;
+  background: var(--panel);
+  border-bottom: 1px solid var(--line-soft);
+}
+.pat-head-title {
+  font-size: 0.74rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--text);
+}
+.pat-head-meta {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  color: var(--muted);
+}
+.pat-chip {
+  padding: 0.08rem 0.5rem;
+  border-radius: var(--radius-xs);
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-size: 0.64rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+}
+.pat-chip-ghost {
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--muted);
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: 0.01em;
 }
 
 .pat-plots {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
   gap: 0.6rem;
+  padding: 0.75rem;
 }
 
 .pat-cell { min-width: 0; }
+.pat-cell-cart { display: flex; align-items: center; }
 
 .pat-svg {
   display: block;
@@ -293,11 +353,10 @@ input[type="range"] {
     radial-gradient(120% 90% at 50% 45%, rgba(76, 201, 240, 0.06), transparent 70%),
     var(--panel);
   border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-xs);
 }
 
-.pat-cart { margin-top: 0.6rem; }
-.pat-cart .pat-svg { max-width: 420px; margin: 0 auto; }
+.pat-cell-cart .pat-svg { margin: auto; }
 
 .p-plot-title { fill: var(--text); font-family: var(--sans); font-weight: 700; letter-spacing: 0.1em; }
 .p-axis-title { fill: var(--muted); font-family: var(--sans); }
@@ -334,8 +393,11 @@ input[type="range"] {
   display: flex;
   flex-wrap: wrap;
   gap: 0.35rem 0.9rem;
-  margin: 0.6rem 0 0;
-  padding: 0;
+  margin: 0 0.75rem;
+  padding: 0.55rem 0.65rem;
+  background: var(--panel);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-xs);
   list-style: none;
   font-size: 0.72rem;
   color: var(--muted);
@@ -348,10 +410,19 @@ input[type="range"] {
 .pat-swatch-bw { background: repeating-linear-gradient(90deg, var(--accent-2) 0 4px, transparent 4px 6px); }
 .pat-swatch-alt { background: repeating-linear-gradient(90deg, var(--accent-2) 0 5px, transparent 5px 8px); }
 
-/* Metric read-out grid */
+/* Metric read-out grid — a bordered sub-card so the numbers read as an instrument. */
+.pat-readout {
+  margin: 0.6rem 0.75rem 0;
+  padding: 0.6rem 0.7rem 0.7rem;
+  background: var(--panel);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-xs);
+}
 .pat-sub {
-  margin: 0.85rem 0 0.4rem;
-  font-size: 0.74rem;
+  margin: 0 0 0.55rem;
+  padding-bottom: 0.4rem;
+  border-bottom: 1px solid var(--line-soft);
+  font-size: 0.72rem;
   text-transform: uppercase;
   letter-spacing: 0.12em;
   color: var(--muted);
@@ -397,13 +468,13 @@ input[type="range"] {
   color: var(--muted);
   line-height: 1.35;
 }
-.pat-note { margin: 0.7rem 0 0; font-size: 0.78rem; line-height: 1.55; }
+.pat-note { margin: 0.6rem 0.75rem; font-size: 0.78rem; line-height: 1.55; }
 
 /* Data table + CSV export */
 .pat-data {
-  margin-top: 0.7rem;
+  margin: 0.6rem 0.75rem 0.75rem;
   border: 1px solid var(--line-soft);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-xs);
   background: var(--panel);
 }
 .pat-data > summary {
@@ -444,20 +515,22 @@ input[type="range"] {
 .pat-table td { color: var(--text); }
 .pat-table tbody tr:hover td { background: var(--panel-2); }
 
-/* Instrument status bar */
-.statusbar {
+/* Instrument status bar — full-bleed sticky rail, content aligned to the grid. */
+.statusbar-rail {
   position: sticky;
   top: 0;
   z-index: 5;
+  background: var(--panel);
+  border-bottom: 1px solid var(--line);
+}
+.statusbar {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 0.15rem 0.9rem;
   max-width: 1180px;
   margin: 0 auto;
-  padding: 0.45rem 1.25rem;
-  background: var(--panel);
-  border-bottom: 1px solid var(--line);
+  padding: 0.5rem 1.25rem;
   font-family: var(--mono);
   font-size: 0.72rem;
   color: var(--muted);
@@ -623,7 +696,7 @@ details.formulas code {
   body { background: #fff; color: #000; }
   .panel { box-shadow: none; }
   .controls, .actions, .tabs { display: none; }
-  .statusbar { display: none; }
+  .statusbar-rail { display: none; }
   .pat-data { display: none; }
   .layout { grid-template-columns: 1fr; }
 }
