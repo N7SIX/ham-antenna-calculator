@@ -957,15 +957,14 @@
       r = res.rows[i];
       if (typeof r.ft === 'number') {
         f = formatLength(r.ft, units);
-        html += '<div class="row"><div class="row-label">' + escapeHtml(r.label) +
-          (r.note ? '<span class="row-note">' + escapeHtml(r.note) + '</span>' : '') +
-          '</div><div class="row-value"><span class="main">' + escapeHtml(f.main) +
-          '</span><span class="sub">' + escapeHtml(f.sub) + '</span></div></div>';
+        html += '<div class="pat-card"><div class="pat-card-title">' + escapeHtml(r.label) +
+          (r.note ? '<span class="pat-card-note">' + escapeHtml(r.note) + '</span>' : '') +
+          '</div><table><thead><tr><th>Value</th></tr></thead><tbody><tr><td>' +
+          escapeHtml(f.main) + '</td></tr></tbody></table></div>';
       } else {
-        html += '<div class="row is-plain"><div class="row-label">' + escapeHtml(r.label) +
-          (r.note ? '<span class="row-note">' + escapeHtml(r.note) + '</span>' : '') +
-          '</div><div class="row-value"><span class="main">' + escapeHtml(r.text || '—') +
-          '</span></div></div>';
+        html += '<div class="pat-card pat-card-plain"><div class="pat-card-title">' + escapeHtml(r.label) +
+          (r.note ? '<span class="pat-card-note">' + escapeHtml(r.note) + '</span>' : '') +
+          '</div><div><span class="main">' + escapeHtml(r.text || '—') + '</span></div></div>';
       }
     }
     return html;
