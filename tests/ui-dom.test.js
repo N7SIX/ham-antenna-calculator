@@ -475,6 +475,79 @@ check('the copy block names the model version',
 check('the copy block carries the pattern disclaimer',
   /not a NEC model/.test(copied), copied.slice(-160));
 
+/* ------------------------------------------------------------------ *
+ * Label legibility: no two <text> boxes in a plot may collide, and no
+ * label may fall outside its own viewBox. Regression guard for the
+ * "ELEVATION" title sitting on top of the peak label.
+ * ------------------------------------------------------------------ */
+
+console.log('\n[pattern labels stay legible]');
+
+var TEXT_RE = /<text x="([-\d.]+)" y="([-\d.]+)" class="([^"]*)" text-anchor="(\w+)" font-size="(\d+)"[^>]*>([\s\S]*?)<\/text>/g;
+
+function textBoxes(svg) {
+  var out = [], m;
+  TEXT_RE.lastIndex = 0;
+  while ((m = TEXT_RE.exec(svg)) !== null) {
+    var x = parseFloat(m[1]), y = parseFloat(m[2]), size = parseFloat(m[5]);
+    var txt = m[6].replace(/&[a-z#0-9]+;/g, 'x').replace(/<[^>]*>/g, '');
+    if (!txt.trim()) continue;
+    var w = txt.length * size * 0.58;          // sans-serif average advance
+    var x0, x1;
+    if (m[4] === 'middle') { x0 = x - w / 2; x1 = x + w / 2; }
+    else if (m[4] === 'end') { x0 = x - w; x1 = x; }
+    else { x0 = x; x1 = x + w; }
+    out.push({
+      text: txt, cls: m[3], size: size,
+      x0: x0, x1: x1, y0: y - size * 0.78, y1: y + size * 0.22
+    });
+  }
+  return out;
+}
+
+function boxesCollide(a, b) {
+  return a.x0 < b.x1 && b.x0 < a.x1 && a.y0 < b.y1 && b.y0 < a.y1;
+}
+
+var labelClashes = [], labelClipped = [];
+Object.keys(sandbox.Antennas.calculators).forEach(function (id) {
+  clickTab(id);
+  (ensure('pattern').innerHTML.match(/<svg[\s\S]*?<\/svg>/g) || []).forEach(function (svg) {
+    var vb = /viewBox="0 0 ([\d.]+) ([\d.]+)"/.exec(svg);
+    var maxW = vb ? parseFloat(vb[1]) : Infinity;
+    var maxH = vb ? parseFloat(vb[2]) : Infinity;
+    var bs = textBoxes(svg);
+    var i, j;
+    for (i = 0; i < bs.length; i++) {
+      for (j = i + 1; j < bs.length; j++) {
+        if (boxesCollide(bs[i], bs[j])) {
+          labelClashes.push(id + ': "' + bs[i].text + '" × "' + bs[j].text + '"');
+        }
+      }
+      if (bs[i].x0 < 0 || bs[i].x1 > maxW || bs[i].y0 < 0 || bs[i].y1 > maxH) {
+        labelClipped.push(id + ': "' + bs[i].text + '"');
+      }
+    }
+  });
+});
+check('no two pattern labels overlap', labelClashes.length === 0, labelClashes.slice(0, 3).join(' | '));
+check('no pattern label is clipped by its viewBox', labelClipped.length === 0,
+  labelClipped.slice(0, 3).join(' | '));
+
+/* The dual-band cartesian shares one frame; nothing may be drawn twice. */
+clickTab('dualBandVertical');
+var cartSvg = (ensure('pattern').innerHTML.match(/<svg[\s\S]*?<\/svg>/g) || [])
+  .filter(function (s) { return /aria-label="Elevation gain against angle"/.test(s); })[0] || '';
+var axisLabels = cartSvg.match(/class="p-axis-label"/g) || [];
+var dupes = 0;
+textBoxes(cartSvg).forEach(function (b) {
+  if (textBoxes(cartSvg).filter(function (o) { return o.text === b.text; }).length > 1) dupes++;
+});
+check('the dual-band cartesian draws its axes only once',
+  axisLabels.length === 8, String(axisLabels.length) + ' axis labels (expect 4 dB + 4 angle)');
+check('the dual-band overlay leaves no duplicated label', dupes === 0, dupes + ' duplicated');
+clickTab('dipole');
+
 console.log('\n' + (failed === 0 ? 'ALL UI TESTS PASSED' : 'FAILURES: ' + failed) +
   '  (' + passed + '/' + (passed + failed) + ')\n');
 process.exit(failed ? 1 : 0);

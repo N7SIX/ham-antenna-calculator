@@ -320,6 +320,7 @@ input[type="range"] {
 .p-peak-ray { stroke: var(--accent); stroke-width: 1; stroke-dasharray: 3 3; fill: none; }
 .p-peak-dot { fill: var(--accent); stroke: var(--panel); stroke-width: 1; }
 .p-peak-label { fill: var(--text); font-family: var(--mono); font-size: 10px; }
+.p-leader { stroke: var(--accent); stroke-width: 0.7; opacity: 0.55; fill: none; }
 .p-null-dot { fill: none; stroke: var(--warn); stroke-width: 1.6; }
 .p-bw-arc { stroke: var(--accent-2); stroke-width: 1.2; stroke-dasharray: 4 2; fill: none; }
 .p-bw-label { fill: var(--accent-2); font-family: var(--mono); font-size: 8px; }
